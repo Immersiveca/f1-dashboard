@@ -12,12 +12,12 @@ st.set_page_config(layout="wide")
 OPENF1_BASE = "https://api.openf1.org/v1"
 
 # -----------------------------
-# TV Broadcast Styling (Mobile-first, True Black + less padding)
+# TV Broadcast Styling (Mobile-first, True Black + tight)
 # -----------------------------
 st.markdown("""
 <style>
 :root{
-  --bg: #000000;                 /* TRUE BLACK */
+  --bg: #000000;
   --panel: rgba(255,255,255,0.07);
   --panel2: rgba(255,255,255,0.10);
   --border: rgba(255,255,255,0.16);
@@ -28,7 +28,6 @@ st.markdown("""
   --red: #E10600;
 }
 
-/* Force the whole Streamlit app to be black (fixes white/blank areas) */
 .stApp,
 [data-testid="stAppViewContainer"],
 [data-testid="stHeader"],
@@ -36,7 +35,6 @@ st.markdown("""
   background: var(--bg) !important;
 }
 
-/* Reduce Streamlit default top padding (fixes large top whitespace) */
 .block-container{
   padding-top: 0.75rem !important;
   padding-bottom: 1.25rem !important;
@@ -47,7 +45,6 @@ html, body, [class*="css"] {
   color: var(--text) !important;
 }
 
-/* Hide Streamlit chrome */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
@@ -67,6 +64,25 @@ header {visibility: hidden;}
   font-size: 13px;
   color: var(--muted2);
   margin-top: 4px;
+}
+
+/* Logo tile (prevents cropping, uses contain) */
+.logoTile{
+  width: 170px;
+  height: 110px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow: hidden;
+}
+.logoTile img{
+  width: 92%;
+  height: 92%;
+  object-fit: contain;   /* key: no crop */
+  object-position: center;
 }
 
 /* Broadcast bar */
@@ -93,14 +109,10 @@ header {visibility: hidden;}
 
 .teamStripe { position:absolute; top:0; left:0; right:0; height: 10px; opacity: 1; }
 
-.acr {
-  font-size: 26px; font-weight: 900; letter-spacing: 1px;
-  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65);
-}
-.num {
-  margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 800;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
-}
+.acr { font-size: 26px; font-weight: 900; letter-spacing: 1px; color: var(--text);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.65); }
+.num { margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 800;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.65); }
 
 .driverMeta { display:flex; flex-direction:column; gap: 8px; }
 .raceLine { display:flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
@@ -112,7 +124,6 @@ header {visibility: hidden;}
   color: var(--text); font-size: 12px; line-height: 1; white-space: nowrap;
   text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
-
 .pillStrong {
   background: rgba(225,6,0,0.26);
   border: 1px solid rgba(225,6,0,0.50);
@@ -129,16 +140,10 @@ header {visibility: hidden;}
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
-.kpiLabel {
-  font-size: 11px; letter-spacing: 0.6px; color: var(--muted2);
-  margin-bottom: 6px; font-weight: 800; text-transform: uppercase;
-}
-
-.kpiValue {
-  font-size: 18px; font-weight: 900; letter-spacing: 0.35px;
-  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65);
-}
-
+.kpiLabel { font-size: 11px; letter-spacing: 0.6px; color: var(--muted2);
+  margin-bottom: 6px; font-weight: 800; text-transform: uppercase; }
+.kpiValue { font-size: 18px; font-weight: 900; letter-spacing: 0.35px;
+  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65); }
 .small-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
 .card {
@@ -161,70 +166,10 @@ header {visibility: hidden;}
 
 /* Gaps */
 .gapGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-.gapCell {
-  padding: 12px; border-radius: 16px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-}
+.gapCell { padding: 12px; border-radius: 16px; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12); }
 .gapDir { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 800; }
 .gapVal { font-size: 16px; font-weight: 900; color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65); }
-
-/* Top-10 ticker */
-.tickerHeader{
-  display:grid;
-  grid-template-columns: 56px 70px 1fr 120px 110px;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: var(--muted2);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-}
-.tickerRow{
-  display:grid;
-  grid-template-columns: 56px 70px 1fr 120px 110px;
-  gap: 8px;
-  padding: 10px 10px;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.10);
-  align-items:center;
-}
-.tickerRowHighlight{
-  outline: 2px solid rgba(225,6,0,0.60);
-  box-shadow: 0 0 0 3px rgba(225,6,0,0.15);
-}
-.posBox{
-  display:flex; align-items:center; justify-content:center;
-  font-weight: 900;
-  border-radius: 10px;
-  padding: 6px 8px;
-  background: rgba(225,6,0,0.18);
-  border: 1px solid rgba(225,6,0,0.35);
-}
-.acrBox{
-  font-weight: 900;
-  letter-spacing: 0.8px;
-}
-.teamBar{
-  width: 100%;
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.10);
-  overflow:hidden;
-  border: 1px solid rgba(255,255,255,0.12);
-}
-.teamFill{ height: 100%; width: 100%; }
-.mono{
-  font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-weight: 800;
-}
-.rightAlign{ text-align:right; }
 
 /* Stint timeline */
 .timelineWrap{
@@ -251,25 +196,42 @@ header {visibility: hidden;}
   font-size: 11px;
   font-weight: 900;
 }
-.timelineMeta{
-  display:flex;
-  justify-content:space-between;
-  gap: 10px;
-  flex-wrap: wrap;
+
+/* Lap markers under the bar */
+.markerRow{
+  position: relative;
+  height: 20px;
   margin-top: 8px;
+}
+.marker{
+  position:absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 900;
   color: var(--muted);
-  font-size: 12px;
+  white-space: nowrap;
+}
+.marker:before{
+  content:"";
+  position:absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 6px;
+  background: rgba(255,255,255,0.22);
+  border-radius: 2px;
 }
 
 @media (max-width: 920px) {
   .topbar { grid-template-columns: 1fr; }
   .rightBlock { grid-template-columns: 1fr 1fr; }
   .gapGrid { grid-template-columns: 1fr; }
-  .tickerHeader, .tickerRow { grid-template-columns: 56px 66px 1fr 110px 90px; }
 }
 @media (max-width: 520px) {
   .appTitleText { font-size: 26px; }
-  .tickerHeader, .tickerRow { grid-template-columns: 52px 60px 1fr 92px 72px; }
+  .logoTile{ width: 160px; height: 104px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -287,7 +249,6 @@ def get_json(endpoint: str):
         return []
 
 def format_lap_time(value):
-    """mm.ss.sss (preferred)"""
     try:
         if value is None:
             return "--"
@@ -340,7 +301,7 @@ def plotly_force_dark(fig):
     return fig
 
 # -----------------------------
-# App Header (logo bigger + tighter)
+# Header (logo not cropped + bigger)
 # -----------------------------
 st.markdown("<div class='container'>", unsafe_allow_html=True)
 
@@ -351,16 +312,19 @@ logo_path_candidates = [
 ]
 logo_path = next((p for p in logo_path_candidates if os.path.exists(p)), None)
 
-col_logo, col_title = st.columns([1.3, 8], vertical_alignment="center")
+col_logo, col_title = st.columns([1.8, 8], vertical_alignment="center")
+
 with col_logo:
     if logo_path:
-        st.image(logo_path, width=130)   # bigger logo
+        # Use HTML image inside logo tile so we can enforce object-fit: contain
+        st.markdown(
+            f"<div class='logoTile'><img src='{logo_path}'/></div>",
+            unsafe_allow_html=True
+        )
     else:
         st.markdown(
-            "<div style='width:130px;height:62px;border:1px solid rgba(255,255,255,0.14);"
-            "border-radius:12px;display:flex;align-items:center;justify-content:center;"
-            "color:#F8FAFC;font-weight:900;'>F1</div>",
-            unsafe_allow_html=True,
+            "<div class='logoTile' style='font-weight:900;color:#F8FAFC;'>F1</div>",
+            unsafe_allow_html=True
         )
 
 with col_title:
@@ -374,7 +338,7 @@ with col_title:
     """, unsafe_allow_html=True)
 
 # -----------------------------
-# 1) Season → 2) Race Weekend → 3) Session selector
+# 1) Season → 2) Meeting → 3) Session
 # -----------------------------
 @st.cache_data(ttl=6*60*60)
 def load_meetings():
@@ -433,7 +397,15 @@ session_options = {
 sel_session_label = st.selectbox("Session", list(session_options.keys()))
 session_key = session_options[sel_session_label]
 
-auto_refresh = st.toggle("Auto Refresh (5s)", value=True)
+# -----------------------------
+# Refresh selector (Off/5/10/20) default 10s
+# -----------------------------
+refresh_choice = st.selectbox(
+    "Auto Refresh",
+    ["Off", "5s", "10s", "20s"],
+    index=2
+)
+refresh_seconds = {"Off": 0, "5s": 5, "10s": 10, "20s": 20}[refresh_choice]
 
 # -----------------------------
 # Pull selected session info
@@ -514,7 +486,7 @@ team_colour = normalize_hex_color(me_driver.iloc[0].get("team_colour")) if (not 
 full_name = safe_str(me_driver.iloc[0].get("full_name")) if (not me_driver.empty and "full_name" in me_driver.columns) else acr
 
 # -----------------------------
-# GAPS via /intervals (leader/ahead/behind)
+# GAPS via /intervals + /positions
 # -----------------------------
 intervals = pd.DataFrame(get_json(f"intervals?session_key={session_key}"))
 driver_ahead = "-"
@@ -567,11 +539,11 @@ if not intervals.empty and "driver_number" in intervals.columns:
                     gap_behind = safe_str(behind.iloc[0].get("interval"), "--")
 
 # -----------------------------
-# Stint timeline (FIX: no indentation -> no code block)
+# Stint timeline: NO busy text, add lap markers at stint changes
 # -----------------------------
 def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
     if stints_df.empty or not all(c in stints_df.columns for c in ["lap_start", "lap_end", "compound"]):
-        return "<div class='timelineWrap'><div class='timelineMeta'>No stint data available.</div></div>"
+        return "<div class='timelineWrap'><div style='color:rgba(255,255,255,0.55);'>No stint data available.</div></div>"
 
     df = stints_df.sort_values("lap_start").copy()
 
@@ -581,9 +553,9 @@ def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
         total = int(max(df["lap_end"].max(), current_lap_number))
 
     segs = []
-    meta_bits = []
+    markers = []
 
-    for _, r in df.iterrows():
+    for idx, r in df.iterrows():
         ls = int(r["lap_start"])
         le = int(r["lap_end"])
         comp = safe_str(r["compound"], "-").upper()
@@ -606,62 +578,22 @@ def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
         segs.append(
             f"<div class='stintSeg' style='width:{w:.2f}%; background:{color}; color:{text_color};'>{short}</div>"
         )
-        meta_bits.append(f"{comp} L{ls}–L{le}")
 
-    left = " • ".join(meta_bits[:3])
-    right = " • ".join(meta_bits[3:])
+        # Marker: at each stint start except first (tire change happened at this lap)
+        if ls != int(df.iloc[0]["lap_start"]):
+            x = (ls / total) * 100.0
+            markers.append(f"<div class='marker' style='left:{x:.2f}%;'>L{ls}</div>")
 
     html = f"""
 <div class="timelineWrap">
   <div class="timelineBar">{''.join(segs)}</div>
-  <div class="timelineMeta">
-    <div>{left}</div>
-    <div>{right}</div>
-  </div>
+  <div class="markerRow">{''.join(markers)}</div>
 </div>
 """
     return textwrap.dedent(html).strip()
 
 # -----------------------------
-# Top-10 ticker
-# -----------------------------
-def build_latest_snapshots_for_ticker():
-    positions = pd.DataFrame(get_json(f"positions?session_key={session_key}"))
-    intervals2 = pd.DataFrame(get_json(f"intervals?session_key={session_key}"))
-
-    if positions.empty or "driver_number" not in positions.columns or "position" not in positions.columns:
-        return pd.DataFrame()
-
-    if "date" in positions.columns:
-        pos_snap = positions.sort_values("date").groupby("driver_number").tail(1)
-    else:
-        pos_snap = positions.groupby("driver_number").tail(1)
-
-    if not intervals2.empty and "driver_number" in intervals2.columns:
-        if "date" in intervals2.columns:
-            int_snap = intervals2.sort_values("date").groupby("driver_number").tail(1)
-        else:
-            int_snap = intervals2.groupby("driver_number").tail(1)
-        keep_cols = [c for c in ["driver_number", "gap_to_leader", "interval"] if c in int_snap.columns]
-        merged = pos_snap.merge(int_snap[keep_cols], on="driver_number", how="left")
-    else:
-        merged = pos_snap.copy()
-        merged["gap_to_leader"] = pd.NA
-        merged["interval"] = pd.NA
-
-    cols_needed = ["driver_number", "name_acronym", "team_colour", "team_name"]
-    if all(c in drivers_full.columns for c in cols_needed):
-        merged = merged.merge(drivers_full[cols_needed], on="driver_number", how="left")
-    else:
-        merged = merged.merge(drivers_full, on="driver_number", how="left")
-
-    return merged
-
-ticker_df = build_latest_snapshots_for_ticker()
-top10 = ticker_df.sort_values("position").head(10).copy() if not ticker_df.empty else pd.DataFrame()
-
-# -----------------------------
-# Render broadcast header
+# Render TV header + cards
 # -----------------------------
 cur_time_str = format_lap_time(current_lap.get("lap_duration_num"))
 prev_time_str = format_lap_time(previous_lap.get("lap_duration_num")) if previous_lap is not None else "--"
@@ -721,59 +653,15 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Stint timeline (FIXED)
-timeline_html = stint_timeline_html(stints, int(total_laps) if total_laps else 0)
+# Stint timeline (clean)
 st.markdown(f"""
 <div class="card" style="margin-top:12px;">
   <div class="sectionTitle">🛞 Stint Timeline</div>
-  {timeline_html}
+  {stint_timeline_html(stints, int(total_laps) if total_laps else 0)}
 </div>
 """, unsafe_allow_html=True)
 
-# Top-10 leaderboard
-st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
-st.markdown("<div class='sectionTitle'>🏁 Top 10 Leaderboard</div>", unsafe_allow_html=True)
-
-if top10.empty:
-    st.info("Top-10 data not available for this session (positions snapshot missing).")
-else:
-    st.markdown("""
-    <div class="tickerHeader">
-      <div class="rightAlign">POS</div>
-      <div>DRIVER</div>
-      <div>TEAM</div>
-      <div class="rightAlign">GAP</div>
-      <div class="rightAlign">INT</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    for _, r in top10.iterrows():
-        pos = int(r.get("position")) if pd.notna(r.get("position")) else "-"
-        dnum = r.get("driver_number")
-        acr2 = safe_str(r.get("name_acronym"), str(dnum))
-        team_name2 = safe_str(r.get("team_name"), "-")
-        team_col2 = normalize_hex_color(r.get("team_colour"))
-        gap2 = safe_str(r.get("gap_to_leader"), "--")
-        itv2 = safe_str(r.get("interval"), "--")
-
-        highlight_class = "tickerRow tickerRowHighlight" if int(dnum) == int(driver_number) else "tickerRow"
-
-        st.markdown(f"""
-        <div class="{highlight_class}">
-          <div class="posBox">{pos}</div>
-          <div class="acrBox">{acr2}</div>
-          <div>
-            <div class="teamBar"><div class="teamFill" style="background:{team_col2};"></div></div>
-            <div style="margin-top:6px; color: var(--muted); font-size:12px;">{team_name2}</div>
-          </div>
-          <div class="mono rightAlign">{gap2}</div>
-          <div class="mono rightAlign">{itv2}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-st.markdown("</div>", unsafe_allow_html=True)
-
-# Lap trend chart
+# Chart
 st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
 st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution</div>", unsafe_allow_html=True)
 
@@ -785,7 +673,6 @@ if not chart_data.empty:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("No valid lap durations available to chart.")
-
 st.markdown("</div>", unsafe_allow_html=True)
 
 # Race progress
@@ -797,7 +684,9 @@ if total_laps:
 
 st.markdown("</div>", unsafe_allow_html=True)  # end container
 
-# Auto refresh
-if auto_refresh:
-    time.sleep(5)
+# -----------------------------
+# Auto Refresh loop
+# -----------------------------
+if refresh_seconds > 0:
+    time.sleep(refresh_seconds)
     st.rerun()

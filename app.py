@@ -4,24 +4,27 @@ import pandas as pd
 import plotly.express as px
 import time
 import math
+import os
 
 st.set_page_config(layout="wide")
 
 OPENF1_BASE = "https://api.openf1.org/v1"
 
 # -----------------------------
-# TV Broadcast Styling (Mobile-first, High Contrast)
+# TV Broadcast Styling (Mobile-first, True Black)
 # -----------------------------
 st.markdown("""
 <style>
 :root{
-  --bg: #0B0F14;
-  --panel: rgba(255,255,255,0.06);
-  --border: rgba(255,255,255,0.14);
-  --text: #F5F7FA;
-  --muted: #B6C0CC;
-  --muted2: #8E9AA8;
-  --shadow: 0 14px 28px rgba(0,0,0,0.45);
+  --bg: #000000;                 /* TRUE BLACK */
+  --panel: rgba(255,255,255,0.07);
+  --panel2: rgba(255,255,255,0.10);
+  --border: rgba(255,255,255,0.16);
+  --text: #F8FAFC;
+  --muted: #C7D0DB;
+  --muted2: #95A3B5;
+  --shadow: 0 14px 28px rgba(0,0,0,0.65);
+  --red: #E10600;
 }
 
 html, body, [class*="css"] {
@@ -33,15 +36,30 @@ html, body, [class*="css"] {
 footer {visibility: hidden;}
 header {visibility: hidden;}
 
-.container { width: 100%; max-width: 980px; margin: 0 auto; }
+.container { width: 100%; max-width: 1100px; margin: 0 auto; }
 
+/* Header */
+.appTitleText {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  color: var(--text);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
+}
+.appSubtitle {
+  font-size: 12px;
+  color: var(--muted2);
+  margin-top: -4px;
+}
+
+/* Broadcast bar */
 .topbar {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   gap: 12px;
   padding: 12px;
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(24,30,38,0.96), rgba(12,16,22,0.96));
+  background: linear-gradient(180deg, rgba(18,22,28,0.96), rgba(5,7,10,0.96));
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
@@ -50,7 +68,7 @@ header {visibility: hidden;}
 
 .driverBadge {
   width: 92px; height: 92px; border-radius: 16px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.10);
   border: 1px solid var(--border);
   display:flex; flex-direction:column; justify-content:center; align-items:center;
   position: relative; overflow: hidden;
@@ -60,11 +78,11 @@ header {visibility: hidden;}
 
 .acr {
   font-size: 26px; font-weight: 900; letter-spacing: 1px;
-  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
 .num {
   margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 800;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
 
 .driverMeta { display:flex; flex-direction:column; gap: 8px; }
@@ -73,15 +91,15 @@ header {visibility: hidden;}
 
 .pill {
   padding: 7px 11px; border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.16);
   color: var(--text); font-size: 12px; line-height: 1; white-space: nowrap;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
 
 .pillStrong {
-  background: rgba(225,6,0,0.24);
-  border: 1px solid rgba(225,6,0,0.44);
+  background: rgba(225,6,0,0.26);
+  border: 1px solid rgba(225,6,0,0.50);
   color: var(--text);
   font-weight: 900;
 }
@@ -90,8 +108,8 @@ header {visibility: hidden;}
 
 .kpi {
   padding: 12px; border-radius: 16px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.16);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
@@ -102,44 +120,142 @@ header {visibility: hidden;}
 
 .kpiValue {
   font-size: 18px; font-weight: 900; letter-spacing: 0.35px;
-  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
 
 .small-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
 .card {
   padding: 12px; border-radius: 16px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.14);
 }
 
 .sectionTitle {
   font-weight: 900; letter-spacing: 0.4px;
-  margin: 8px 0 10px 0; color: var(--text);
-  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  margin: 6px 0 10px 0; color: var(--text);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
 
 .tireDot {
   display:inline-block; width: 10px; height: 10px; border-radius: 999px;
   margin-right: 6px; transform: translateY(1px);
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.35);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.45);
 }
 
+/* Gaps */
 .gapGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-
 .gapCell {
   padding: 12px; border-radius: 16px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
 }
-
 .gapDir { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 800; }
-.gapVal { font-size: 16px; font-weight: 900; color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.55); }
+.gapVal { font-size: 16px; font-weight: 900; color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65); }
 
-@media (max-width: 720px) {
+/* Top-10 ticker */
+.tickerHeader{
+  display:grid;
+  grid-template-columns: 56px 70px 1fr 120px 110px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--muted2);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.tickerRow{
+  display:grid;
+  grid-template-columns: 56px 70px 1fr 120px 110px;
+  gap: 8px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  align-items:center;
+}
+.tickerRowHighlight{
+  outline: 2px solid rgba(225,6,0,0.60);
+  box-shadow: 0 0 0 3px rgba(225,6,0,0.15);
+}
+.posBox{
+  display:flex; align-items:center; justify-content:center;
+  font-weight: 900;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: rgba(225,6,0,0.18);
+  border: 1px solid rgba(225,6,0,0.35);
+}
+.acrBox{
+  font-weight: 900;
+  letter-spacing: 0.8px;
+}
+.teamBar{
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.10);
+  overflow:hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.teamFill{
+  height: 100%;
+  width: 100%;
+}
+.mono{
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 800;
+}
+.rightAlign{ text-align:right; }
+
+/* Stint timeline */
+.timelineWrap{
+  width:100%;
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.timelineBar{
+  width:100%;
+  height: 18px;
+  border-radius: 999px;
+  overflow:hidden;
+  display:flex;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+}
+.stintSeg{
+  height: 100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 11px;
+  font-weight: 900;
+}
+.timelineMeta{
+  display:flex;
+  justify-content:space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 920px) {
   .topbar { grid-template-columns: 1fr; }
   .rightBlock { grid-template-columns: 1fr 1fr; }
   .gapGrid { grid-template-columns: 1fr; }
+  .tickerHeader, .tickerRow { grid-template-columns: 56px 66px 1fr 110px 90px; }
+}
+@media (max-width: 520px) {
+  .tickerHeader, .tickerRow { grid-template-columns: 52px 60px 1fr 92px 72px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -157,14 +273,13 @@ def get_json(endpoint: str):
         return []
 
 def format_lap_time(value):
+    """mm.ss.sss (preferred)"""
     try:
         if value is None:
             return "--"
         sec = float(value)
         if math.isnan(sec) or sec <= 0:
             return "--"
-        hours = int(sec // 3600)
-        sec -= hours * 3600
         minutes = int(sec // 60)
         sec -= minutes * 60
         return f"{minutes:02d}m.{sec:06.3f}s"
@@ -172,8 +287,14 @@ def format_lap_time(value):
         return "--"
 
 def tire_color(compound: str):
-    colors = {"SOFT":"#ff2e2e","MEDIUM":"#ffd800","HARD":"#ffffff","INTERMEDIATE":"#00ff66","WET":"#0099ff"}
-    return colors.get(compound, "#aaaaaa")
+    colors = {
+        "SOFT":"#ff2e2e",
+        "MEDIUM":"#ffd800",
+        "HARD":"#ffffff",
+        "INTERMEDIATE":"#00ff66",
+        "WET":"#0099ff"
+    }
+    return colors.get((compound or "").upper(), "#aaaaaa")
 
 def safe_str(x, default="-"):
     if x is None:
@@ -195,9 +316,9 @@ def normalize_hex_color(c):
 def plotly_force_dark(fig):
     fig.update_layout(
         template="plotly_dark",
-        paper_bgcolor="#0B0F14",
-        plot_bgcolor="#0B0F14",
-        font=dict(color="#F5F7FA"),
+        paper_bgcolor="#000000",
+        plot_bgcolor="#000000",
+        font=dict(color="#F8FAFC"),
         xaxis=dict(gridcolor="rgba(255,255,255,0.10)", zerolinecolor="rgba(255,255,255,0.10)"),
         yaxis=dict(gridcolor="rgba(255,255,255,0.10)", zerolinecolor="rgba(255,255,255,0.10)"),
         margin=dict(l=10, r=10, t=10, b=10),
@@ -205,16 +326,51 @@ def plotly_force_dark(fig):
     return fig
 
 # -----------------------------
-# App Title
+# App Header (with your repo logo file)
 # -----------------------------
-st.title("🏎 F1 LIVE ANALYTICS BY MPH")
+st.markdown("<div class='container'>", unsafe_allow_html=True)
+
+logo_path_candidates = [
+    "2026 F1 logo.png",
+    "assets/2026 F1 logo.png",
+    "images/2026 F1 logo.png",
+]
+
+logo_path = None
+for p in logo_path_candidates:
+    if os.path.exists(p):
+        logo_path = p
+        break
+
+col_logo, col_title = st.columns([1, 8], vertical_alignment="center")
+
+with col_logo:
+    if logo_path:
+        st.image(logo_path, width=90)
+    else:
+        # Fallback if file path is wrong
+        st.markdown(
+            "<div style='width:90px;height:44px;border:1px solid rgba(255,255,255,0.14);"
+            "border-radius:10px;display:flex;align-items:center;justify-content:center;"
+            "color:#F8FAFC;font-weight:900;'>F1</div>",
+            unsafe_allow_html=True,
+        )
+
+with col_title:
+    st.markdown("""
+    <div class="appTitleText">
+        F1 LIVE ANALYTICS <span style="color:#E10600;">BY MPH</span>
+    </div>
+    <div class="appSubtitle">
+        Season → Race → Session • Broadcast Style Dashboard
+    </div>
+    """, unsafe_allow_html=True)
 
 # -----------------------------
 # 1) Season → 2) Race Weekend → 3) Session selector
 # -----------------------------
 @st.cache_data(ttl=6*60*60)
 def load_meetings():
-    # meetings has year + meeting_name + meeting_key
     return pd.DataFrame(get_json("meetings"))
 
 @st.cache_data(ttl=6*60*60)
@@ -226,17 +382,13 @@ if meetings.empty or "year" not in meetings.columns:
     st.error("Could not load meetings from OpenF1.")
     st.stop()
 
-# only seasons where OpenF1 has data (2023+ typically)
 years = sorted(meetings["year"].dropna().unique().tolist(), reverse=True)
-
 sel_year = st.selectbox("Season (Year)", years, index=0)
 
 meetings_y = meetings[meetings["year"] == sel_year].copy()
-# Sort by date_start if available
 if "date_start" in meetings_y.columns:
     meetings_y = meetings_y.sort_values("date_start")
 
-# Label: Official name if present, else meeting_name
 def meeting_label(row):
     name = row.get("meeting_official_name") or row.get("meeting_name") or "Unknown"
     loc = row.get("location") or ""
@@ -256,14 +408,11 @@ if sessions_df.empty:
     st.error("No sessions returned for that meeting.")
     st.stop()
 
-# Sort sessions by date_start (so FP1 → FP2 → FP3 → Quali → Race)
 if "date_start" in sessions_df.columns:
     sessions_df = sessions_df.sort_values("date_start")
 
 def session_label(row):
-    # ex: "Qualifying" / "Race" / "Practice 1"
     name = row.get("session_name") or "Session"
-    # Optional: show start date in label (nice when sharing publicly)
     dt = row.get("date_start")
     dt_short = dt[:16].replace("T", " ") if isinstance(dt, str) else ""
     return f"{name} ({dt_short} UTC)" if dt_short else name
@@ -338,7 +487,7 @@ else:
     best_lap = valid_laps.loc[valid_laps["lap_duration_num"].idxmin()]
     best_lap_number = int(best_lap["lap_number"])
 
-# Tires
+# Tires (current + best lap tire)
 current_tire = "-"
 best_lap_tire = "-"
 if not stints.empty and all(c in stints.columns for c in ["lap_start", "lap_end", "compound"]):
@@ -411,6 +560,108 @@ if not intervals.empty and "driver_number" in intervals.columns:
                     gap_behind = safe_str(behind.iloc[0].get("interval"), "--")
 
 # -----------------------------
+# Stint timeline (colored blocks)
+# -----------------------------
+def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
+    if stints_df.empty or not all(c in stints_df.columns for c in ["lap_start", "lap_end", "compound"]):
+        return "<div class='timelineWrap'><div class='timelineMeta'>No stint data available.</div></div>"
+
+    df = stints_df.sort_values("lap_start").copy()
+
+    if total_laps_hint and isinstance(total_laps_hint, (int, float)) and total_laps_hint > 0:
+        total = int(total_laps_hint)
+    else:
+        total = int(max(df["lap_end"].max(), current_lap_number))
+
+    segs = []
+    meta_bits = []
+    for _, r in df.iterrows():
+        ls = int(r["lap_start"])
+        le = int(r["lap_end"])
+        comp = safe_str(r["compound"], "-").upper()
+        color = tire_color(comp)
+
+        length = max(le - ls + 1, 1)
+        w = (length / total) * 100.0
+
+        short = comp[:1]
+        if comp == "INTERMEDIATE":
+            short = "I"
+        if comp == "WET":
+            short = "W"
+
+        # Text color choice for legibility
+        text_color = "#000000"
+        if comp in ["SOFT", "WET"]:
+            text_color = "#FFFFFF"
+        if comp == "HARD":
+            text_color = "#000000"
+        if comp == "MEDIUM":
+            text_color = "#000000"
+        if comp == "INTERMEDIATE":
+            text_color = "#000000"
+
+        segs.append(
+            f"<div class='stintSeg' style='width:{w:.2f}%; background:{color}; color:{text_color};'>"
+            f"{short}</div>"
+        )
+        meta_bits.append(f"{comp} L{ls}–L{le}")
+
+    left = " • ".join(meta_bits[:3])
+    right = " • ".join(meta_bits[3:])
+
+    return f"""
+    <div class="timelineWrap">
+      <div class="timelineBar">{''.join(segs)}</div>
+      <div class="timelineMeta">
+        <div>{left}</div>
+        <div>{right}</div>
+      </div>
+    </div>
+    """
+
+# -----------------------------
+# Top-10 ticker (F1TV-like)
+# -----------------------------
+def build_latest_snapshots_for_ticker():
+    positions = pd.DataFrame(get_json(f"positions?session_key={session_key}"))
+    intervals2 = pd.DataFrame(get_json(f"intervals?session_key={session_key}"))
+
+    if positions.empty or "driver_number" not in positions.columns or "position" not in positions.columns:
+        return pd.DataFrame()
+
+    if "date" in positions.columns:
+        pos_snap = positions.sort_values("date").groupby("driver_number").tail(1)
+    else:
+        pos_snap = positions.groupby("driver_number").tail(1)
+
+    if not intervals2.empty and "driver_number" in intervals2.columns:
+        if "date" in intervals2.columns:
+            int_snap = intervals2.sort_values("date").groupby("driver_number").tail(1)
+        else:
+            int_snap = intervals2.groupby("driver_number").tail(1)
+        keep_cols = [c for c in ["driver_number", "gap_to_leader", "interval"] if c in int_snap.columns]
+        merged = pos_snap.merge(int_snap[keep_cols], on="driver_number", how="left")
+    else:
+        merged = pos_snap.copy()
+        merged["gap_to_leader"] = pd.NA
+        merged["interval"] = pd.NA
+
+    # Add driver acronyms + team data if present
+    cols_needed = ["driver_number", "name_acronym", "team_colour", "team_name"]
+    if all(c in drivers_full.columns for c in cols_needed):
+        merged = merged.merge(drivers_full[cols_needed], on="driver_number", how="left")
+    else:
+        merged = merged.merge(drivers_full, on="driver_number", how="left")
+
+    return merged
+
+ticker_df = build_latest_snapshots_for_ticker()
+top10 = pd.DataFrame()
+if not ticker_df.empty:
+    top10 = ticker_df.sort_values("position").head(10).copy()
+
+# -----------------------------
 # Render TV header + cards
 # -----------------------------
 cur_time_str = format_lap_time(current_lap.get("lap_duration_num"))
@@ -422,8 +673,6 @@ lap_pill = f"LAP {current_lap_number}/{total_laps}" if total_laps else f"LAP {cu
 
 current_tire_dot = tire_color(current_tire)
 best_tire_dot = tire_color(best_lap_tire)
-
-st.markdown("<div class='container'>", unsafe_allow_html=True)
 
 st.markdown(f"""
 <div class="topbar">
@@ -461,6 +710,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
+# Gaps
 st.markdown(f"""
 <div class="card" style="margin-top:12px;">
   <div class="sectionTitle">📏 Gaps</div>
@@ -472,7 +722,58 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Chart
+# Stint timeline
+st.markdown(f"""
+<div class="card" style="margin-top:12px;">
+  <div class="sectionTitle">🛞 Stint Timeline</div>
+  {stint_timeline_html(stints, int(total_laps) if total_laps else 0)}
+</div>
+""", unsafe_allow_html=True)
+
+# Top-10 leaderboard
+st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
+st.markdown("<div class='sectionTitle'>🏁 Top 10 Leaderboard</div>", unsafe_allow_html=True)
+
+if top10.empty:
+    st.info("Top-10 data not available for this session (positions snapshot missing).")
+else:
+    st.markdown("""
+    <div class="tickerHeader">
+      <div class="rightAlign">POS</div>
+      <div>DRIVER</div>
+      <div>TEAM</div>
+      <div class="rightAlign">GAP</div>
+      <div class="rightAlign">INT</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for _, r in top10.iterrows():
+        pos = int(r.get("position")) if pd.notna(r.get("position")) else "-"
+        dnum = r.get("driver_number")
+        acr2 = safe_str(r.get("name_acronym"), str(dnum))
+        team_name = safe_str(r.get("team_name"), "-")
+        team_col = normalize_hex_color(r.get("team_colour"))
+        gap = safe_str(r.get("gap_to_leader"), "--")
+        itv = safe_str(r.get("interval"), "--")
+
+        highlight_class = "tickerRow tickerRowHighlight" if int(dnum) == int(driver_number) else "tickerRow"
+
+        st.markdown(f"""
+        <div class="{highlight_class}">
+          <div class="posBox">{pos}</div>
+          <div class="acrBox">{acr2}</div>
+          <div>
+            <div class="teamBar"><div class="teamFill" style="background:{team_col};"></div></div>
+            <div style="margin-top:6px; color: var(--muted); font-size:12px;">{team_name}</div>
+          </div>
+          <div class="mono rightAlign">{gap}</div>
+          <div class="mono rightAlign">{itv}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+# Lap trend chart
 st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
 st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution</div>", unsafe_allow_html=True)
 
@@ -484,17 +785,19 @@ if not chart_data.empty:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("No valid lap durations available to chart.")
+
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Progress
+# Race progress
 if total_laps:
-    st.markdown(f"<div class='card' style='margin-top:12px;'><div class='sectionTitle'>🏁 Race Progress</div></div>",
+    st.markdown("<div class='card' style='margin-top:12px;'><div class='sectionTitle'>🏁 Race Progress</div></div>",
                 unsafe_allow_html=True)
     st.progress(min(current_lap_number / total_laps, 1.0))
     st.caption(f"Lap {current_lap_number} / {total_laps}")
 
-st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)  # end container
 
+# Auto refresh
 if auto_refresh:
     time.sleep(5)
     st.rerun()

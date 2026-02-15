@@ -17,7 +17,6 @@ st.markdown("""
 :root{
   --bg: #0B0F14;
   --panel: rgba(255,255,255,0.06);
-  --panel-strong: rgba(255,255,255,0.10);
   --border: rgba(255,255,255,0.14);
   --text: #F5F7FA;
   --muted: #B6C0CC;
@@ -30,7 +29,6 @@ html, body, [class*="css"] {
   color: var(--text) !important;
 }
 
-/* Clean “broadcast” look */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
@@ -159,7 +157,6 @@ def get_json(endpoint: str):
         return []
 
 def format_lap_time(value):
-    """00H.00M.00.000S; '--' for invalid"""
     try:
         if value is None:
             return "--"
@@ -175,13 +172,7 @@ def format_lap_time(value):
         return "--"
 
 def tire_color(compound: str):
-    colors = {
-        "SOFT": "#ff2e2e",
-        "MEDIUM": "#ffd800",
-        "HARD": "#ffffff",
-        "INTERMEDIATE": "#00ff66",
-        "WET": "#0099ff"
-    }
+    colors = {"SOFT":"#ff2e2e","MEDIUM":"#ffd800","HARD":"#ffffff","INTERMEDIATE":"#00ff66","WET":"#0099ff"}
     return colors.get(compound, "#aaaaaa")
 
 def safe_str(x, default="-"):
@@ -202,7 +193,6 @@ def normalize_hex_color(c):
     return "#888888"
 
 def plotly_force_dark(fig):
-    """Force dark chart even if Streamlit theme is light."""
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="#0B0F14",
@@ -215,21 +205,97 @@ def plotly_force_dark(fig):
     return fig
 
 # -----------------------------
-# Header + Controls
+# App Title
 # -----------------------------
 st.title("🏎 F1 LIVE ANALYTICS BY MPH")
 
-session_key = st.number_input("Session Key", value=9222)
+# -----------------------------
+# 1) Season → 2) Race Weekend → 3) Session selector
+# -----------------------------
+@st.cache_data(ttl=6*60*60)
+def load_meetings():
+    # meetings has year + meeting_name + meeting_key
+    return pd.DataFrame(get_json("meetings"))
 
+@st.cache_data(ttl=6*60*60)
+def load_sessions_for_meeting(meeting_key: int):
+    return pd.DataFrame(get_json(f"sessions?meeting_key={meeting_key}"))
+
+meetings = load_meetings()
+if meetings.empty or "year" not in meetings.columns:
+    st.error("Could not load meetings from OpenF1.")
+    st.stop()
+
+# only seasons where OpenF1 has data (2023+ typically)
+years = sorted(meetings["year"].dropna().unique().tolist(), reverse=True)
+
+sel_year = st.selectbox("Season (Year)", years, index=0)
+
+meetings_y = meetings[meetings["year"] == sel_year].copy()
+# Sort by date_start if available
+if "date_start" in meetings_y.columns:
+    meetings_y = meetings_y.sort_values("date_start")
+
+# Label: Official name if present, else meeting_name
+def meeting_label(row):
+    name = row.get("meeting_official_name") or row.get("meeting_name") or "Unknown"
+    loc = row.get("location") or ""
+    return f"{name} — {loc}".strip(" —")
+
+meeting_options = {
+    meeting_label(r): int(r["meeting_key"])
+    for _, r in meetings_y.iterrows()
+    if pd.notna(r.get("meeting_key"))
+}
+
+sel_meeting_label = st.selectbox("Race Weekend (Meeting)", list(meeting_options.keys()))
+sel_meeting_key = meeting_options[sel_meeting_label]
+
+sessions_df = load_sessions_for_meeting(sel_meeting_key)
+if sessions_df.empty:
+    st.error("No sessions returned for that meeting.")
+    st.stop()
+
+# Sort sessions by date_start (so FP1 → FP2 → FP3 → Quali → Race)
+if "date_start" in sessions_df.columns:
+    sessions_df = sessions_df.sort_values("date_start")
+
+def session_label(row):
+    # ex: "Qualifying" / "Race" / "Practice 1"
+    name = row.get("session_name") or "Session"
+    # Optional: show start date in label (nice when sharing publicly)
+    dt = row.get("date_start")
+    dt_short = dt[:16].replace("T", " ") if isinstance(dt, str) else ""
+    return f"{name} ({dt_short} UTC)" if dt_short else name
+
+session_options = {
+    session_label(r): int(r["session_key"])
+    for _, r in sessions_df.iterrows()
+    if pd.notna(r.get("session_key"))
+}
+
+sel_session_label = st.selectbox("Session", list(session_options.keys()))
+session_key = session_options[sel_session_label]
+
+auto_refresh = st.toggle("Auto Refresh (5s)", value=True)
+
+# -----------------------------
+# Pull selected session info
+# -----------------------------
 session_data = get_json(f"sessions?session_key={session_key}")
-session_name = safe_str(session_data[0].get("session_name")) if session_data else "-"
-location = safe_str(session_data[0].get("location")) if session_data else "-"
+session_name = safe_str(session_data[0].get("session_name")) if session_data else safe_str(sel_session_label)
+location = safe_str(session_data[0].get("location")) if session_data else safe_str(sel_meeting_label)
 total_laps = session_data[0].get("total_laps", 0) if session_data else 0
 
+# -----------------------------
+# Driver Selection (for this session)
+# -----------------------------
 drivers_data = get_json(f"drivers?session_key={session_key}")
 if not drivers_data:
-    st.error("No drivers found for this session key. Try another session key.")
+    st.error("No drivers found for this session.")
     st.stop()
+
+drivers_full = pd.DataFrame(drivers_data)
 
 driver_map = {}
 for d in drivers_data:
@@ -238,12 +304,8 @@ for d in drivers_data:
     if dn is not None:
         driver_map[f"{acr} ({dn})"] = int(dn)
 
-selected_driver = st.selectbox("Select Driver", list(driver_map.keys()))
+selected_driver = st.selectbox("Driver", list(driver_map.keys()))
 driver_number = driver_map[selected_driver]
-
-auto_refresh = st.toggle("Auto Refresh (5s)", value=True)
-
-drivers_full = pd.DataFrame(drivers_data)
 
 # -----------------------------
 # Load Laps + Stints
@@ -255,7 +317,6 @@ if laps.empty or "lap_number" not in laps.columns:
 
 laps = laps.sort_values("lap_number")
 
-# Bulletproof numeric duration
 if "lap_duration" in laps.columns:
     laps["lap_duration_num"] = pd.to_numeric(laps["lap_duration"], errors="coerce")
 elif "lap_time" in laps.columns:
@@ -265,7 +326,6 @@ else:
 
 stints = pd.DataFrame(get_json(f"stints?session_key={session_key}&driver_number={driver_number}"))
 
-# Core lap metrics
 current_lap = laps.iloc[-1]
 previous_lap = laps.iloc[-2] if len(laps) > 1 else None
 current_lap_number = int(current_lap["lap_number"])
@@ -290,9 +350,7 @@ if not stints.empty and all(c in stints.columns for c in ["lap_start", "lap_end"
         if not bl.empty:
             best_lap_tire = safe_str(bl.iloc[0].get("compound"))
 
-# -----------------------------
-# Driver identity (team colors if available)
-# -----------------------------
+# Driver identity / team color
 me_driver = drivers_full[drivers_full["driver_number"] == driver_number]
 acr = safe_str(me_driver.iloc[0].get("name_acronym")) if not me_driver.empty else "DRV"
 team = safe_str(me_driver.iloc[0].get("team_name")) if (not me_driver.empty and "team_name" in me_driver.columns) else "-"
@@ -300,14 +358,9 @@ team_colour = normalize_hex_color(me_driver.iloc[0].get("team_colour")) if (not 
 full_name = safe_str(me_driver.iloc[0].get("full_name")) if (not me_driver.empty and "full_name" in me_driver.columns) else acr
 
 # -----------------------------
-# GAPS (FIXED) – use /intervals (purpose-built)
+# GAPS via /intervals (leader/ahead/behind)
 # -----------------------------
-# intervals provides:
-# - gap_to_leader (selected driver to leader)
-# - interval (selected driver to car ahead)
-# For gap to behind: use the behind driver's interval to its ahead (which is our driver).
 intervals = pd.DataFrame(get_json(f"intervals?session_key={session_key}"))
-
 driver_ahead = "-"
 driver_behind = "-"
 gap_ahead = "--"
@@ -322,23 +375,18 @@ def acronym_for(num):
     return str(num)
 
 if not intervals.empty and "driver_number" in intervals.columns:
-    # Use the latest snapshot per driver (most recent 'date' if present)
     if "date" in intervals.columns:
         snap = intervals.sort_values("date").groupby("driver_number").tail(1)
     else:
         snap = intervals.groupby("driver_number").tail(1)
 
-    # We still need position ordering to know who is ahead/behind.
-    # We'll combine with positions snapshot for ordering.
     positions = pd.DataFrame(get_json(f"positions?session_key={session_key}"))
-
     if not positions.empty and "driver_number" in positions.columns and "position" in positions.columns:
         if "date" in positions.columns:
             pos_snap = positions.sort_values("date").groupby("driver_number").tail(1)
         else:
             pos_snap = positions.groupby("driver_number").tail(1)
 
-        # Merge to get (driver_number, position, gap_to_leader, interval)
         merged = pos_snap[["driver_number", "position"]].merge(
             snap[[c for c in snap.columns if c in ["driver_number", "gap_to_leader", "interval"]]],
             on="driver_number",
@@ -356,17 +404,14 @@ if not intervals.empty and "driver_number" in intervals.columns:
                 behind = merged[merged["position"] == my_pos + 1]
 
                 if not ahead.empty:
-                    ahead_num = int(ahead.iloc[0]["driver_number"])
-                    driver_ahead = acronym_for(ahead_num)
+                    driver_ahead = acronym_for(int(ahead.iloc[0]["driver_number"]))
 
                 if not behind.empty:
-                    behind_num = int(behind.iloc[0]["driver_number"])
-                    driver_behind = acronym_for(behind_num)
-                    # Behind gap to us = behind driver's interval (to car ahead i.e. us)
+                    driver_behind = acronym_for(int(behind.iloc[0]["driver_number"]))
                     gap_behind = safe_str(behind.iloc[0].get("interval"), "--")
 
 # -----------------------------
-# TV-style Header (Broadcast Lower Third)
+# Render TV header + cards
 # -----------------------------
 cur_time_str = format_lap_time(current_lap.get("lap_duration_num"))
 prev_time_str = format_lap_time(previous_lap.get("lap_duration_num")) if previous_lap is not None else "--"
@@ -396,14 +441,8 @@ st.markdown(f"""
       </div>
       <div class="raceLine">
         <span class="pill">Team: <b>{safe_str(team)}</b></span>
-        <span class="pill">
-          <span class="tireDot" style="background:{current_tire_dot};"></span>
-          Current Tire: <b>{safe_str(current_tire)}</b>
-        </span>
-        <span class="pill">
-          <span class="tireDot" style="background:{best_tire_dot};"></span>
-          Best Lap Tire: <b>{safe_str(best_lap_tire)}</b>
-        </span>
+        <span class="pill"><span class="tireDot" style="background:{current_tire_dot};"></span>Current Tire: <b>{safe_str(current_tire)}</b></span>
+        <span class="pill"><span class="tireDot" style="background:{best_tire_dot};"></span>Best Lap Tire: <b>{safe_str(best_lap_tire)}</b></span>
       </div>
       <div class="raceLine">
         <span class="pill">Leader: <b>{safe_str(gap_leader, "--")}</b></span>
@@ -414,54 +453,26 @@ st.markdown(f"""
   </div>
 
   <div class="rightBlock">
-    <div class="kpi">
-      <div class="kpiLabel">Current Lap</div>
-      <div class="kpiValue">{cur_time_str}</div>
-    </div>
-    <div class="kpi">
-      <div class="kpiLabel">Previous Lap</div>
-      <div class="kpiValue">{prev_time_str}</div>
-    </div>
-    <div class="kpi">
-      <div class="kpiLabel">Best Lap</div>
-      <div class="kpiValue">{best_time_str}</div>
-      <div class="small-note">Lap {best_lap_number if best_lap_number is not None else "--"}</div>
-    </div>
-    <div class="kpi">
-      <div class="kpiLabel">Driver</div>
-      <div class="kpiValue">{safe_str(full_name, acr)}</div>
-      <div class="small-note">{safe_str(team)}</div>
-    </div>
+    <div class="kpi"><div class="kpiLabel">Current Lap</div><div class="kpiValue">{cur_time_str}</div></div>
+    <div class="kpi"><div class="kpiLabel">Previous Lap</div><div class="kpiValue">{prev_time_str}</div></div>
+    <div class="kpi"><div class="kpiLabel">Best Lap</div><div class="kpiValue">{best_time_str}</div><div class="small-note">Lap {best_lap_number if best_lap_number is not None else "--"}</div></div>
+    <div class="kpi"><div class="kpiLabel">Driver</div><div class="kpiValue">{safe_str(full_name, acr)}</div><div class="small-note">{safe_str(team)}</div></div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-# -----------------------------
-# Gaps Card (now correct)
-# -----------------------------
 st.markdown(f"""
 <div class="card" style="margin-top:12px;">
   <div class="sectionTitle">📏 Gaps</div>
   <div class="gapGrid">
-    <div class="gapCell">
-      <div class="gapDir">To Leader</div>
-      <div class="gapVal">{safe_str(gap_leader, "--")}</div>
-    </div>
-    <div class="gapCell">
-      <div class="gapDir">⬆ {safe_str(driver_ahead, "-")}</div>
-      <div class="gapVal">{safe_str(gap_ahead, "--")}</div>
-    </div>
-    <div class="gapCell">
-      <div class="gapDir">⬇ {safe_str(driver_behind, "-")}</div>
-      <div class="gapVal">{safe_str(gap_behind, "--")}</div>
-    </div>
+    <div class="gapCell"><div class="gapDir">To Leader</div><div class="gapVal">{safe_str(gap_leader, "--")}</div></div>
+    <div class="gapCell"><div class="gapDir">⬆ {safe_str(driver_ahead, "-")}</div><div class="gapVal">{safe_str(gap_ahead, "--")}</div></div>
+    <div class="gapCell"><div class="gapDir">⬇ {safe_str(driver_behind, "-")}</div><div class="gapVal">{safe_str(gap_behind, "--")}</div></div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-# -----------------------------
-# Lap Trend Chart (FORCED DARK)
-# -----------------------------
+# Chart
 st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
 st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution</div>", unsafe_allow_html=True)
 
@@ -475,20 +486,15 @@ else:
     st.info("No valid lap durations available to chart.")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# -----------------------------
-# Race Progress
-# -----------------------------
+# Progress
 if total_laps:
     st.markdown(f"<div class='card' style='margin-top:12px;'><div class='sectionTitle'>🏁 Race Progress</div></div>",
                 unsafe_allow_html=True)
     st.progress(min(current_lap_number / total_laps, 1.0))
     st.caption(f"Lap {current_lap_number} / {total_laps}")
 
-st.markdown("</div>", unsafe_allow_html=True)  # end container
+st.markdown("</div>", unsafe_allow_html=True)
 
-# -----------------------------
-# Auto Refresh
-# -----------------------------
 if auto_refresh:
     time.sleep(5)
     st.rerun()

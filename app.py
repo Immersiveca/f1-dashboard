@@ -241,7 +241,7 @@ def get_json(endpoint: str):
 
 def format_lap_time(value):
     """
-    Format seconds into: 00H.00M.00.000S
+    Format seconds into: 00M.00.000S
     Returns '--' for None/NaN/invalid.
     """
     try:
@@ -254,7 +254,7 @@ def format_lap_time(value):
         sec -= hours * 3600
         minutes = int(sec // 60)
         sec -= minutes * 60
-        return f"{hours:02d}H.{minutes:02d}M.{sec:06.3f}S"
+        return f"{minutes:02d}M.{sec:06.3f}S"
     except:
         return "--"
 

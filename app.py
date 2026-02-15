@@ -5,13 +5,14 @@ import plotly.express as px
 import time
 import math
 import os
+import textwrap
 
 st.set_page_config(layout="wide")
 
 OPENF1_BASE = "https://api.openf1.org/v1"
 
 # -----------------------------
-# TV Broadcast Styling (Mobile-first, True Black)
+# TV Broadcast Styling (Mobile-first, True Black + less padding)
 # -----------------------------
 st.markdown("""
 <style>
@@ -27,11 +28,26 @@ st.markdown("""
   --red: #E10600;
 }
 
+/* Force the whole Streamlit app to be black (fixes white/blank areas) */
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stHeader"],
+[data-testid="stToolbar"]{
+  background: var(--bg) !important;
+}
+
+/* Reduce Streamlit default top padding (fixes large top whitespace) */
+.block-container{
+  padding-top: 0.75rem !important;
+  padding-bottom: 1.25rem !important;
+}
+
 html, body, [class*="css"] {
   background-color: var(--bg) !important;
   color: var(--text) !important;
 }
 
+/* Hide Streamlit chrome */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
@@ -40,16 +56,17 @@ header {visibility: hidden;}
 
 /* Header */
 .appTitleText {
-  font-size: 22px;
+  font-size: 30px;
   font-weight: 900;
   letter-spacing: 0.6px;
   color: var(--text);
   text-shadow: 0 2px 10px rgba(0,0,0,0.65);
+  line-height: 1.05;
 }
 .appSubtitle {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted2);
-  margin-top: -4px;
+  margin-top: 4px;
 }
 
 /* Broadcast bar */
@@ -86,7 +103,6 @@ header {visibility: hidden;}
 }
 
 .driverMeta { display:flex; flex-direction:column; gap: 8px; }
-
 .raceLine { display:flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
 
 .pill {
@@ -202,10 +218,7 @@ header {visibility: hidden;}
   overflow:hidden;
   border: 1px solid rgba(255,255,255,0.12);
 }
-.teamFill{
-  height: 100%;
-  width: 100%;
-}
+.teamFill{ height: 100%; width: 100%; }
 .mono{
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -255,6 +268,7 @@ header {visibility: hidden;}
   .tickerHeader, .tickerRow { grid-template-columns: 56px 66px 1fr 110px 90px; }
 }
 @media (max-width: 520px) {
+  .appTitleText { font-size: 26px; }
   .tickerHeader, .tickerRow { grid-template-columns: 52px 60px 1fr 92px 72px; }
 }
 </style>
@@ -326,7 +340,7 @@ def plotly_force_dark(fig):
     return fig
 
 # -----------------------------
-# App Header (with your repo logo file)
+# App Header (logo bigger + tighter)
 # -----------------------------
 st.markdown("<div class='container'>", unsafe_allow_html=True)
 
@@ -335,23 +349,16 @@ logo_path_candidates = [
     "assets/2026 F1 logo.png",
     "images/2026 F1 logo.png",
 ]
+logo_path = next((p for p in logo_path_candidates if os.path.exists(p)), None)
 
-logo_path = None
-for p in logo_path_candidates:
-    if os.path.exists(p):
-        logo_path = p
-        break
-
-col_logo, col_title = st.columns([1, 8], vertical_alignment="center")
-
+col_logo, col_title = st.columns([1.3, 8], vertical_alignment="center")
 with col_logo:
     if logo_path:
-        st.image(logo_path, width=90)
+        st.image(logo_path, width=130)   # bigger logo
     else:
-        # Fallback if file path is wrong
         st.markdown(
-            "<div style='width:90px;height:44px;border:1px solid rgba(255,255,255,0.14);"
-            "border-radius:10px;display:flex;align-items:center;justify-content:center;"
+            "<div style='width:130px;height:62px;border:1px solid rgba(255,255,255,0.14);"
+            "border-radius:12px;display:flex;align-items:center;justify-content:center;"
             "color:#F8FAFC;font-weight:900;'>F1</div>",
             unsafe_allow_html=True,
         )
@@ -560,7 +567,7 @@ if not intervals.empty and "driver_number" in intervals.columns:
                     gap_behind = safe_str(behind.iloc[0].get("interval"), "--")
 
 # -----------------------------
-# Stint timeline (colored blocks)
+# Stint timeline (FIX: no indentation -> no code block)
 # -----------------------------
 def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
     if stints_df.empty or not all(c in stints_df.columns for c in ["lap_start", "lap_end", "compound"]):
@@ -575,6 +582,7 @@ def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
 
     segs = []
     meta_bits = []
+
     for _, r in df.iterrows():
         ls = int(r["lap_start"])
         le = int(r["lap_end"])
@@ -590,38 +598,32 @@ def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
         if comp == "WET":
             short = "W"
 
-        # Text color choice for legibility
+        # Text color for legibility
         text_color = "#000000"
         if comp in ["SOFT", "WET"]:
             text_color = "#FFFFFF"
-        if comp == "HARD":
-            text_color = "#000000"
-        if comp == "MEDIUM":
-            text_color = "#000000"
-        if comp == "INTERMEDIATE":
-            text_color = "#000000"
 
         segs.append(
-            f"<div class='stintSeg' style='width:{w:.2f}%; background:{color}; color:{text_color};'>"
-            f"{short}</div>"
+            f"<div class='stintSeg' style='width:{w:.2f}%; background:{color}; color:{text_color};'>{short}</div>"
         )
         meta_bits.append(f"{comp} L{ls}–L{le}")
 
     left = " • ".join(meta_bits[:3])
     right = " • ".join(meta_bits[3:])
 
-    return f"""
-    <div class="timelineWrap">
-      <div class="timelineBar">{''.join(segs)}</div>
-      <div class="timelineMeta">
-        <div>{left}</div>
-        <div>{right}</div>
-      </div>
-    </div>
-    """
+    html = f"""
+<div class="timelineWrap">
+  <div class="timelineBar">{''.join(segs)}</div>
+  <div class="timelineMeta">
+    <div>{left}</div>
+    <div>{right}</div>
+  </div>
+</div>
+"""
+    return textwrap.dedent(html).strip()
 
 # -----------------------------
-# Top-10 ticker (F1TV-like)
+# Top-10 ticker
 # -----------------------------
 def build_latest_snapshots_for_ticker():
     positions = pd.DataFrame(get_json(f"positions?session_key={session_key}"))
@@ -647,7 +649,6 @@ def build_latest_snapshots_for_ticker():
         merged["gap_to_leader"] = pd.NA
         merged["interval"] = pd.NA
 
-    # Add driver acronyms + team data if present
     cols_needed = ["driver_number", "name_acronym", "team_colour", "team_name"]
     if all(c in drivers_full.columns for c in cols_needed):
         merged = merged.merge(drivers_full[cols_needed], on="driver_number", how="left")
@@ -657,12 +658,10 @@ def build_latest_snapshots_for_ticker():
     return merged
 
 ticker_df = build_latest_snapshots_for_ticker()
-top10 = pd.DataFrame()
-if not ticker_df.empty:
-    top10 = ticker_df.sort_values("position").head(10).copy()
+top10 = ticker_df.sort_values("position").head(10).copy() if not ticker_df.empty else pd.DataFrame()
 
 # -----------------------------
-# Render TV header + cards
+# Render broadcast header
 # -----------------------------
 cur_time_str = format_lap_time(current_lap.get("lap_duration_num"))
 prev_time_str = format_lap_time(previous_lap.get("lap_duration_num")) if previous_lap is not None else "--"
@@ -722,11 +721,12 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Stint timeline
+# Stint timeline (FIXED)
+timeline_html = stint_timeline_html(stints, int(total_laps) if total_laps else 0)
 st.markdown(f"""
 <div class="card" style="margin-top:12px;">
   <div class="sectionTitle">🛞 Stint Timeline</div>
-  {stint_timeline_html(stints, int(total_laps) if total_laps else 0)}
+  {timeline_html}
 </div>
 """, unsafe_allow_html=True)
 
@@ -751,10 +751,10 @@ else:
         pos = int(r.get("position")) if pd.notna(r.get("position")) else "-"
         dnum = r.get("driver_number")
         acr2 = safe_str(r.get("name_acronym"), str(dnum))
-        team_name = safe_str(r.get("team_name"), "-")
-        team_col = normalize_hex_color(r.get("team_colour"))
-        gap = safe_str(r.get("gap_to_leader"), "--")
-        itv = safe_str(r.get("interval"), "--")
+        team_name2 = safe_str(r.get("team_name"), "-")
+        team_col2 = normalize_hex_color(r.get("team_colour"))
+        gap2 = safe_str(r.get("gap_to_leader"), "--")
+        itv2 = safe_str(r.get("interval"), "--")
 
         highlight_class = "tickerRow tickerRowHighlight" if int(dnum) == int(driver_number) else "tickerRow"
 
@@ -763,11 +763,11 @@ else:
           <div class="posBox">{pos}</div>
           <div class="acrBox">{acr2}</div>
           <div>
-            <div class="teamBar"><div class="teamFill" style="background:{team_col};"></div></div>
-            <div style="margin-top:6px; color: var(--muted); font-size:12px;">{team_name}</div>
+            <div class="teamBar"><div class="teamFill" style="background:{team_col2};"></div></div>
+            <div style="margin-top:6px; color: var(--muted); font-size:12px;">{team_name2}</div>
           </div>
-          <div class="mono rightAlign">{gap}</div>
-          <div class="mono rightAlign">{itv}</div>
+          <div class="mono rightAlign">{gap2}</div>
+          <div class="mono rightAlign">{itv2}</div>
         </div>
         """, unsafe_allow_html=True)
 

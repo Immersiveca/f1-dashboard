@@ -478,7 +478,7 @@ st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution</div>", unsafe_al
 
 chart_data = laps.dropna(subset=["lap_duration_num"])
 if not chart_data.empty:
-    fig = px.line(chart_data, x="lap_Number", y="lap_duration_num")
+    fig = px.line(chart_data, x="lap_number", y="lap_duration_num")
     fig = plotly_force_dark(fig)
     fig.update_layout(height=360)
     st.plotly_chart(fig, use_container_width=True)

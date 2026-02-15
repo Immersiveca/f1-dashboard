@@ -398,11 +398,11 @@ st.markdown(f"""
         <span class="pill">Team: <b>{safe_str(team)}</b></span>
         <span class="pill">
           <span class="tireDot" style="background:{current_tire_dot};"></span>
-          Tire: <b>{safe_str(current_tire)}</b>
+          Current Tire: <b>{safe_str(current_tire)}</b>
         </span>
         <span class="pill">
           <span class="tireDot" style="background:{best_tire_dot};"></span>
-          Best tire: <b>{safe_str(best_lap_tire)}</b>
+          Best Lap tire: <b>{safe_str(best_lap_tire)}</b>
         </span>
       </div>
       <div class="raceLine">

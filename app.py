@@ -254,7 +254,7 @@ def format_lap_time(value):
         sec -= hours * 3600
         minutes = int(sec // 60)
         sec -= minutes * 60
-        return f"{minutes:02d}M.{sec:06.3f}S"
+        return f"{minutes:02d}m.{sec:06.3f}s"
     except:
         return "--"
 

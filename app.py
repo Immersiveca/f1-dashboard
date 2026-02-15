@@ -402,7 +402,7 @@ st.markdown(f"""
         </span>
         <span class="pill">
           <span class="tireDot" style="background:{best_tire_dot};"></span>
-          Best Lap tire: <b>{safe_str(best_lap_tire)}</b>
+          Best Lap Tire: <b>{safe_str(best_lap_tire)}</b>
         </span>
       </div>
       <div class="raceLine">

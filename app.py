@@ -8,26 +8,46 @@ st.set_page_config(layout="wide")
 
 OPENF1_BASE = "https://api.openf1.org/v1"
 
-# -------------------------
-# Styling (Broadcast Dark)
-# -------------------------
+# -----------------------------
+# Styling – Broadcast Dark Mode
+# -----------------------------
 
 st.markdown("""
 <style>
-body {background-color: #0E1117;}
-.metric-label {font-size: 14px;}
+html, body, [class*="css"] {
+    background-color: #0E1117;
+    color: white;
+}
+.metric-label {
+    font-size: 12px !important;
+}
+.big-font {
+    font-size:22px !important;
+    font-weight:600;
+}
+.banner {
+    padding:10px;
+    border-radius:8px;
+    background: linear-gradient(90deg, #E10600, #8B0000);
+    color:white;
+    text-align:center;
+    font-weight:bold;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------
+# -----------------------------
 # Utilities
-# -------------------------
+# -----------------------------
 
 def get_json(endpoint):
-    response = requests.get(f"{OPENF1_BASE}/{endpoint}")
-    if response.status_code != 200:
+    try:
+        response = requests.get(f"{OPENF1_BASE}/{endpoint}", timeout=10)
+        if response.status_code == 200:
+            return response.json()
         return []
-    return response.json()
+    except:
+        return []
 
 def format_lap_time(seconds):
     if seconds is None:
@@ -41,21 +61,34 @@ def format_lap_time(seconds):
 
 def tire_color(compound):
     colors = {
-        "SOFT": "red",
-        "MEDIUM": "yellow",
-        "HARD": "white",
-        "INTERMEDIATE": "green",
-        "WET": "blue"
+        "SOFT": "#ff2e2e",
+        "MEDIUM": "#ffd800",
+        "HARD": "#ffffff",
+        "INTERMEDIATE": "#00ff66",
+        "WET": "#0099ff"
     }
-    return colors.get(compound, "gray")
+    return colors.get(compound, "#aaaaaa")
 
-# -------------------------
+# -----------------------------
 # Header
-# -------------------------
+# -----------------------------
 
-st.title("🏎 LIVE F1 DRIVER ANALYTICS")
+st.title("🏎 F1 LIVE ANALYTICS")
 
 session_key = st.number_input("Session Key", value=9222)
+
+session_data = get_json(f"sessions?session_key={session_key}")
+if session_data:
+    session_name = session_data[0].get("session_name", "")
+    location = session_data[0].get("location", "")
+    st.markdown(
+        f"<div class='banner'>{location} – {session_name}</div>",
+        unsafe_allow_html=True
+    )
+
+# -----------------------------
+# Driver Selection
+# -----------------------------
 
 drivers_data = get_json(f"drivers?session_key={session_key}")
 
@@ -64,44 +97,38 @@ driver_map = {
     for d in drivers_data
 }
 
-selected_driver_label = st.selectbox(
-    "Select Driver",
-    list(driver_map.keys())
-)
+selected_driver = st.selectbox("Select Driver", list(driver_map.keys()))
+driver_number = driver_map[selected_driver]
 
-driver_number = driver_map[selected_driver_label]
+auto_refresh = st.toggle("Auto Refresh (5s)", value=True)
 
-auto_refresh = st.checkbox("🔄 Auto Refresh (5s)", value=True)
+# -----------------------------
+# Load Core Data
+# -----------------------------
 
-# -------------------------
-# Data Loading
-# -------------------------
-
-laps_data = get_json(
+laps = pd.DataFrame(get_json(
     f"laps?session_key={session_key}&driver_number={driver_number}"
-)
+))
 
-if not laps_data:
-    st.warning("No data found.")
+if laps.empty:
+    st.warning("No lap data available.")
     st.stop()
 
-laps = pd.DataFrame(laps_data).sort_values("lap_number")
+laps = laps.sort_values("lap_number")
 
-stints = pd.DataFrame(
-    get_json(f"stints?session_key={session_key}&driver_number={driver_number}")
-)
+stints = pd.DataFrame(get_json(
+    f"stints?session_key={session_key}&driver_number={driver_number}"
+))
 
-positions = pd.DataFrame(
-    get_json(f"positions?session_key={session_key}")
-)
+positions = pd.DataFrame(get_json(
+    f"positions?session_key={session_key}"
+))
 
 drivers_full = pd.DataFrame(drivers_data)
 
-session_data = get_json(f"sessions?session_key={session_key}")
-
-# -------------------------
+# -----------------------------
 # Core Metrics
-# -------------------------
+# -----------------------------
 
 current_lap = laps.iloc[-1]
 previous_lap = laps.iloc[-2] if len(laps) > 1 else None
@@ -110,119 +137,90 @@ best_lap = laps.loc[laps["lap_duration"].idxmin()]
 current_lap_number = int(current_lap["lap_number"])
 best_lap_number = int(best_lap["lap_number"])
 
-# Tire info
+# Tire logic
 current_tire = "-"
-previous_tire = "-"
 best_lap_tire = "-"
 
 if not stints.empty:
-
     current_stint = stints[
         (stints.lap_start <= current_lap_number) &
         (stints.lap_end >= current_lap_number)
     ]
-
     if not current_stint.empty:
         current_tire = current_stint.iloc[0]["compound"]
-
-    if len(stints) > 1:
-        previous_tire = stints.sort_values("lap_start").iloc[-2]["compound"]
 
     best_stint = stints[
         (stints.lap_start <= best_lap_number) &
         (stints.lap_end >= best_lap_number)
     ]
-
     if not best_stint.empty:
         best_lap_tire = best_stint.iloc[0]["compound"]
 
-# -------------------------
-# Position Logic
-# -------------------------
+# -----------------------------
+# Position & Gaps
+# -----------------------------
 
 driver_ahead = "-"
 driver_behind = "-"
 gap_ahead = "-"
 gap_behind = "-"
-gap_to_leader = "-"
+gap_leader = "-"
 
-if not positions.empty and "driver_number" in positions.columns:
+if not positions.empty and "position" in positions.columns:
+    latest_positions = positions.sort_values("date").iloc[-20:]
+    latest_positions = latest_positions.sort_values("position")
 
-    latest_positions = positions.iloc[-20:]  # last batch
+    driver_row = latest_positions[
+        latest_positions["driver_number"] == driver_number
+    ]
 
-    if "position" in latest_positions.columns:
+    if not driver_row.empty:
+        pos = int(driver_row.iloc[0]["position"])
+        gap_leader = driver_row.iloc[0].get("gap_to_leader", "-")
 
-        latest_positions = latest_positions.sort_values("position")
+        ahead = latest_positions[latest_positions["position"] == pos - 1]
+        behind = latest_positions[latest_positions["position"] == pos + 1]
 
-        driver_row = latest_positions[
-            latest_positions["driver_number"] == driver_number
-        ]
+        if not ahead.empty:
+            ahead_number = ahead.iloc[0]["driver_number"]
+            gap_ahead = ahead.iloc[0].get("interval", "-")
+            driver_ahead = drivers_full[
+                drivers_full["driver_number"] == ahead_number
+            ]["name_acronym"].values[0]
 
-        if not driver_row.empty:
+        if not behind.empty:
+            behind_number = behind.iloc[0]["driver_number"]
+            gap_behind = behind.iloc[0].get("interval", "-")
+            driver_behind = drivers_full[
+                drivers_full["driver_number"] == behind_number
+            ]["name_acronym"].values[0]
 
-            pos_index = driver_row.index[0]
-            driver_position = driver_row.iloc[0]["position"]
+# -----------------------------
+# Layout – Mobile Optimized
+# -----------------------------
 
-            if driver_position > 1:
-                ahead_row = latest_positions[
-                    latest_positions["position"] == driver_position - 1
-                ]
-                if not ahead_row.empty:
-                    driver_ahead = drivers_full[
-                        drivers_full["driver_number"] ==
-                        ahead_row.iloc[0]["driver_number"]
-                    ]["name_acronym"].values[0]
-                    gap_ahead = ahead_row.iloc[0].get("interval", "-")
+st.subheader("⏱ Lap Times")
 
-            behind_row = latest_positions[
-                latest_positions["position"] == driver_position + 1
-            ]
-            if not behind_row.empty:
-                driver_behind = drivers_full[
-                    drivers_full["driver_number"] ==
-                    behind_row.iloc[0]["driver_number"]
-                ]["name_acronym"].values[0]
-                gap_behind = behind_row.iloc[0].get("interval", "-")
-
-            gap_to_leader = driver_row.iloc[0].get("gap_to_leader", "-")
-
-# -------------------------
-# Dashboard Layout
-# -------------------------
-
-st.subheader("⏱ LAP TIMES")
-
-col1, col2 = st.columns(2)
-
-col1.metric("Current Lap", format_lap_time(current_lap["lap_duration"]))
-col1.metric("Previous Lap",
-            format_lap_time(previous_lap["lap_duration"]) if previous_lap is not None else "--")
-
-col2.metric("Best Lap",
-            f"{format_lap_time(best_lap['lap_duration'])} (Lap {best_lap_number})")
-col2.metric("Best Lap Tire", best_lap_tire)
-
-st.subheader("🛞 TIRES")
+st.metric("Current Lap", format_lap_time(current_lap["lap_duration"]))
+st.metric("Best Lap",
+          f"{format_lap_time(best_lap['lap_duration'])} (Lap {best_lap_number})")
 
 st.markdown(
-    f"Current: <span style='color:{tire_color(current_tire)}'>{current_tire}</span> | "
-    f"Previous: {previous_tire}",
+    f"🛞 Current Tire: <span style='color:{tire_color(current_tire)}'>{current_tire}</span>",
     unsafe_allow_html=True
 )
 
-st.subheader("📏 GAPS")
+st.subheader("📏 Gaps")
 
-gap_col1, gap_col2, gap_col3 = st.columns(3)
+st.metric("To Leader", gap_leader)
+st.metric(f"⬆ {driver_ahead}", gap_ahead)
+st.metric(f"⬇ {driver_behind}", gap_behind)
 
-gap_col1.metric("To Leader", gap_to_leader)
-gap_col2.metric(f"⬆ {driver_ahead}", gap_ahead)
-gap_col3.metric(f"⬇ {driver_behind}", gap_behind)
-
-# -------------------------
+# -----------------------------
 # Lap Trend Chart
-# -------------------------
+# -----------------------------
 
-st.subheader("📊 Lap Time Trend")
+st.subheader("📊 Lap Time Evolution")
 
 fig = px.line(
     laps,
@@ -233,26 +231,9 @@ fig = px.line(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------
-# Tire Stint Timeline
-# -------------------------
-
-if not stints.empty:
-    st.subheader("🛞 Tire Stints")
-
-    stint_fig = px.timeline(
-        stints,
-        x_start="lap_start",
-        x_end="lap_end",
-        y=["Stint"] * len(stints),
-        color="compound",
-        template="plotly_dark"
-    )
-    st.plotly_chart(stint_fig, use_container_width=True)
-
-# -------------------------
+# -----------------------------
 # Race Progress
-# -------------------------
+# -----------------------------
 
 if session_data:
     total_laps = session_data[0].get("total_laps", 0)
@@ -261,9 +242,9 @@ if session_data:
         st.progress(current_lap_number / total_laps)
         st.write(f"Lap {current_lap_number} / {total_laps}")
 
-# -------------------------
+# -----------------------------
 # Auto Refresh
-# -------------------------
+# -----------------------------
 
 if auto_refresh:
     time.sleep(5)

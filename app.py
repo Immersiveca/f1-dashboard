@@ -49,16 +49,27 @@ def get_json(endpoint):
     except:
         return []
 
-def format_lap_time(seconds):
-    if seconds is None:
-        return "--"
-    total_seconds = float(seconds)
-    hours = int(total_seconds // 3600)
-    remaining = total_seconds % 3600
-    minutes = int(remaining // 60)
-    secs = remaining % 60
-    return f"{hours:02d}H.{minutes:02d}M.{secs:06.3f}S"
+import math
 
+def format_lap_time(value):
+    """
+    Format seconds into: 00H.00M.00.000S
+    Returns "--" for None/NaN/invalid.
+    """
+    try:
+        if value is None:
+            return "--"
+        sec = float(value)
+        if math.isnan(sec) or sec <= 0:
+            return "--"
+        hours = int(sec // 3600)
+        sec = sec - (hours * 3600)
+        minutes = int(sec // 60)
+        sec = sec - (minutes * 60)
+        return f"{hours:02d}H.{minutes:02d}M.{sec:06.3f}S"
+    except:
+        return "--"
+        
 def tire_color(compound):
     colors = {
         "SOFT": "#ff2e2e",
@@ -73,7 +84,7 @@ def tire_color(compound):
 # Header
 # -----------------------------
 
-st.title("🏎 F1 LIVE ANALYTICS")
+st.title("🏎 F1 LIVE ANALYTICS BY MPH")
 
 session_key = st.number_input("Session Key", value=9222)
 
@@ -130,12 +141,19 @@ drivers_full = pd.DataFrame(drivers_data)
 # Core Metrics
 # -----------------------------
 
+# Current / previous lap (keep the last row for lap number progress)
 current_lap = laps.iloc[-1]
 previous_lap = laps.iloc[-2] if len(laps) > 1 else None
-best_lap = laps.loc[laps["lap_duration"].idxmin()]
 
+# Best lap: ignore NaN / missing lap_duration
+valid_laps = laps.dropna(subset=["lap_duration_num"])
+if valid_laps.empty:
+    best_lap = None
+    best_lap_number = None
+else:
+    best_lap = valid_laps.loc[valid_laps["lap_duration_num"].idxmin()]
+    best_lap_number = int(best_lap["lap_number"])
 current_lap_number = int(current_lap["lap_number"])
-best_lap_number = int(best_lap["lap_number"])
 
 # Tire logic
 current_tire = "-"
@@ -155,6 +173,12 @@ if not stints.empty:
     ]
     if not best_stint.empty:
         best_lap_tire = best_stint.iloc[0]["compound"]
+
+#------------------------------
+# Make lap durations numeric + safe
+#-------------------------------
+
+laps["lap_duration_num"] = pd.to_numeric(laps.get("lap_duration"), errors="coerce")
 
 # -----------------------------
 # Position & Gaps
@@ -201,10 +225,17 @@ if not positions.empty and "position" in positions.columns:
 
 st.subheader("⏱ Lap Times")
 
-st.metric("Current Lap", format_lap_time(current_lap["lap_duration"]))
-st.metric("Best Lap",
-          f"{format_lap_time(best_lap['lap_duration'])} (Lap {best_lap_number})")
+st.metric("Current Lap", format_lap_time(current_lap["lap_duration_num"]))
+if previous_lap is not None:
+    st.metric("Previous Lap", format_lap_time(previous_lap["lap_duration_num"]))
+else:
+    st.metric("Previous Lap", "--")
 
+if best_lap is not None:
+    st.metric("Best Lap", f"{format_lap_time(best_lap['lap_duration_num'])} (Lap {best_lap_number})")
+else:
+    st.metric("Best Lap", "--")
+    
 st.markdown(
     f"🛞 Current Tire: <span style='color:{tire_color(current_tire)}'>{current_tire}</span>",
     unsafe_allow_html=True
@@ -223,9 +254,9 @@ st.metric(f"⬇ {driver_behind}", gap_behind)
 st.subheader("📊 Lap Time Evolution")
 
 fig = px.line(
-    laps,
+    laps.dropna(subset=["lap_duration_num"]),
     x="lap_number",
-    y="lap_duration",
+    y="lap_duration_num",
     template="plotly_dark"
 )
 

@@ -35,11 +35,7 @@ html, body, [class*="css"] {
 footer {visibility: hidden;}
 header {visibility: hidden;}
 
-.container {
-  width: 100%;
-  max-width: 980px;
-  margin: 0 auto;
-}
+.container { width: 100%; max-width: 980px; margin: 0 auto; }
 
 .topbar {
   display: grid;
@@ -52,73 +48,36 @@ header {visibility: hidden;}
   box-shadow: var(--shadow);
 }
 
-.leftBlock {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 12px;
-  align-items: center;
-}
+.leftBlock { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: center; }
 
 .driverBadge {
-  width: 92px;
-  height: 92px;
-  border-radius: 16px;
+  width: 92px; height: 92px; border-radius: 16px;
   background: rgba(255,255,255,0.08);
   border: 1px solid var(--border);
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  position: relative;
-  overflow: hidden;
+  display:flex; flex-direction:column; justify-content:center; align-items:center;
+  position: relative; overflow: hidden;
 }
 
-.teamStripe {
-  position:absolute;
-  top:0; left:0; right:0;
-  height: 10px;
-  opacity: 1;
-}
+.teamStripe { position:absolute; top:0; left:0; right:0; height: 10px; opacity: 1; }
 
 .acr {
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  color: var(--text);
-  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  font-size: 26px; font-weight: 900; letter-spacing: 1px;
+  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.55);
 }
 .num {
-  margin-top: 2px;
-  font-size: 14px;
-  color: var(--muted);
-  font-weight: 800;
+  margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 800;
   text-shadow: 0 2px 10px rgba(0,0,0,0.55);
 }
 
-.driverMeta {
-  display:flex;
-  flex-direction:column;
-  gap: 8px;
-}
+.driverMeta { display:flex; flex-direction:column; gap: 8px; }
 
-.raceLine {
-  display:flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--muted);
-}
+.raceLine { display:flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
 
 .pill {
-  padding: 7px 11px;
-  border-radius: 999px;
+  padding: 7px 11px; border-radius: 999px;
   background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.14);
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
+  color: var(--text); font-size: 12px; line-height: 1; white-space: nowrap;
   text-shadow: 0 2px 10px rgba(0,0,0,0.55);
 }
 
@@ -129,96 +88,56 @@ header {visibility: hidden;}
   font-weight: 900;
 }
 
-.rightBlock {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
+.rightBlock { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .kpi {
-  padding: 12px;
-  border-radius: 16px;
+  padding: 12px; border-radius: 16px;
   background: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.14);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 .kpiLabel {
-  font-size: 11px;
-  letter-spacing: 0.6px;
-  color: var(--muted2);
-  margin-bottom: 6px;
-  font-weight: 800;
-  text-transform: uppercase;
+  font-size: 11px; letter-spacing: 0.6px; color: var(--muted2);
+  margin-bottom: 6px; font-weight: 800; text-transform: uppercase;
 }
 
 .kpiValue {
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 0.35px;
-  color: var(--text);
-  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  font-size: 18px; font-weight: 900; letter-spacing: 0.35px;
+  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.55);
 }
 
-.small-note {
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 4px;
-}
+.small-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
 .card {
-  padding: 12px;
-  border-radius: 16px;
+  padding: 12px; border-radius: 16px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
 }
 
 .sectionTitle {
-  font-weight: 900;
-  letter-spacing: 0.4px;
-  margin: 8px 0 10px 0;
-  color: var(--text);
+  font-weight: 900; letter-spacing: 0.4px;
+  margin: 8px 0 10px 0; color: var(--text);
   text-shadow: 0 2px 10px rgba(0,0,0,0.55);
 }
 
 .tireDot {
-  display:inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  margin-right: 6px;
-  transform: translateY(1px);
+  display:inline-block; width: 10px; height: 10px; border-radius: 999px;
+  margin-right: 6px; transform: translateY(1px);
   box-shadow: 0 0 0 2px rgba(0,0,0,0.35);
 }
 
-.gapGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
-}
+.gapGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
 .gapCell {
-  padding: 12px;
-  border-radius: 16px;
+  padding: 12px; border-radius: 16px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
 }
 
-.gapDir {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 6px;
-  font-weight: 800;
-}
+.gapDir { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 800; }
+.gapVal { font-size: 16px; font-weight: 900; color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.55); }
 
-.gapVal {
-  font-size: 16px;
-  font-weight: 900;
-  color: var(--text);
-  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
-}
-
-/* Mobile */
 @media (max-width: 720px) {
   .topbar { grid-template-columns: 1fr; }
   .rightBlock { grid-template-columns: 1fr 1fr; }
@@ -240,10 +159,7 @@ def get_json(endpoint: str):
         return []
 
 def format_lap_time(value):
-    """
-    Format seconds into: 00M.00.000S
-    Returns '--' for None/NaN/invalid.
-    """
+    """00H.00M.00.000S; '--' for invalid"""
     try:
         if value is None:
             return "--"
@@ -254,7 +170,7 @@ def format_lap_time(value):
         sec -= hours * 3600
         minutes = int(sec // 60)
         sec -= minutes * 60
-        return f"{minutes:02d}m.{sec:06.3f}s"
+        return f"{minutes:02d}M.{sec:06.3f}S"
     except:
         return "--"
 
@@ -285,6 +201,19 @@ def normalize_hex_color(c):
         return "#" + c.upper()
     return "#888888"
 
+def plotly_force_dark(fig):
+    """Force dark chart even if Streamlit theme is light."""
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0B0F14",
+        plot_bgcolor="#0B0F14",
+        font=dict(color="#F5F7FA"),
+        xaxis=dict(gridcolor="rgba(255,255,255,0.10)", zerolinecolor="rgba(255,255,255,0.10)"),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.10)", zerolinecolor="rgba(255,255,255,0.10)"),
+        margin=dict(l=10, r=10, t=10, b=10),
+    )
+    return fig
+
 # -----------------------------
 # Header + Controls
 # -----------------------------
@@ -309,25 +238,19 @@ for d in drivers_data:
     if dn is not None:
         driver_map[f"{acr} ({dn})"] = int(dn)
 
-if not driver_map:
-    st.error("Driver list returned but could not be parsed. Try another session key.")
-    st.stop()
-
 selected_driver = st.selectbox("Select Driver", list(driver_map.keys()))
 driver_number = driver_map[selected_driver]
 
 auto_refresh = st.toggle("Auto Refresh (5s)", value=True)
 
+drivers_full = pd.DataFrame(drivers_data)
+
 # -----------------------------
-# Load Data
+# Load Laps + Stints
 # -----------------------------
 laps = pd.DataFrame(get_json(f"laps?session_key={session_key}&driver_number={driver_number}"))
-if laps.empty:
+if laps.empty or "lap_number" not in laps.columns:
     st.warning("No lap data available for this driver/session.")
-    st.stop()
-
-if "lap_number" not in laps.columns:
-    st.error("Lap data does not contain lap_number. Can't build dashboard.")
     st.stop()
 
 laps = laps.sort_values("lap_number")
@@ -341,21 +264,8 @@ else:
     laps["lap_duration_num"] = pd.NA
 
 stints = pd.DataFrame(get_json(f"stints?session_key={session_key}&driver_number={driver_number}"))
-positions = pd.DataFrame(get_json(f"positions?session_key={session_key}"))
-drivers_full = pd.DataFrame(drivers_data)
 
-# -----------------------------
-# Driver identity (team colors if available)
-# -----------------------------
-me_driver = drivers_full[drivers_full["driver_number"] == driver_number]
-acr = safe_str(me_driver.iloc[0].get("name_acronym")) if not me_driver.empty else "DRV"
-team = safe_str(me_driver.iloc[0].get("team_name")) if (not me_driver.empty and "team_name" in me_driver.columns) else "-"
-team_colour = normalize_hex_color(me_driver.iloc[0].get("team_colour")) if (not me_driver.empty and "team_colour" in me_driver.columns) else "#888888"
-full_name = safe_str(me_driver.iloc[0].get("full_name")) if (not me_driver.empty and "full_name" in me_driver.columns) else acr
-
-# -----------------------------
-# Core Metrics
-# -----------------------------
+# Core lap metrics
 current_lap = laps.iloc[-1]
 previous_lap = laps.iloc[-2] if len(laps) > 1 else None
 current_lap_number = int(current_lap["lap_number"])
@@ -381,41 +291,69 @@ if not stints.empty and all(c in stints.columns for c in ["lap_start", "lap_end"
             best_lap_tire = safe_str(bl.iloc[0].get("compound"))
 
 # -----------------------------
-# Position & gaps + ahead/behind names (robust)
+# Driver identity (team colors if available)
 # -----------------------------
+me_driver = drivers_full[drivers_full["driver_number"] == driver_number]
+acr = safe_str(me_driver.iloc[0].get("name_acronym")) if not me_driver.empty else "DRV"
+team = safe_str(me_driver.iloc[0].get("team_name")) if (not me_driver.empty and "team_name" in me_driver.columns) else "-"
+team_colour = normalize_hex_color(me_driver.iloc[0].get("team_colour")) if (not me_driver.empty and "team_colour" in me_driver.columns) else "#888888"
+full_name = safe_str(me_driver.iloc[0].get("full_name")) if (not me_driver.empty and "full_name" in me_driver.columns) else acr
+
+# -----------------------------
+# GAPS (FIXED) – use /intervals (purpose-built)
+# -----------------------------
+# intervals provides:
+# - gap_to_leader (selected driver to leader)
+# - interval (selected driver to car ahead)
+# For gap to behind: use the behind driver's interval to its ahead (which is our driver).
+intervals = pd.DataFrame(get_json(f"intervals?session_key={session_key}"))
+
 driver_ahead = "-"
 driver_behind = "-"
-gap_ahead = "-"
-gap_behind = "-"
-gap_leader = "-"
+gap_ahead = "--"
+gap_behind = "--"
+gap_leader = "--"
 my_pos = None
 
-if not positions.empty and "driver_number" in positions.columns:
-    # Snapshot: most recent per driver
-    if "date" in positions.columns:
-        pos_latest = positions.sort_values("date").tail(120)
-        pos_latest = pos_latest.sort_values("date").groupby("driver_number").tail(1)
+def acronym_for(num):
+    row = drivers_full[drivers_full["driver_number"] == num]
+    if not row.empty:
+        return safe_str(row.iloc[0].get("name_acronym"), str(num))
+    return str(num)
+
+if not intervals.empty and "driver_number" in intervals.columns:
+    # Use the latest snapshot per driver (most recent 'date' if present)
+    if "date" in intervals.columns:
+        snap = intervals.sort_values("date").groupby("driver_number").tail(1)
     else:
-        pos_latest = positions.tail(120).groupby("driver_number").tail(1)
+        snap = intervals.groupby("driver_number").tail(1)
 
-    if "position" in pos_latest.columns:
-        pos_latest = pos_latest.sort_values("position")
+    # We still need position ordering to know who is ahead/behind.
+    # We'll combine with positions snapshot for ordering.
+    positions = pd.DataFrame(get_json(f"positions?session_key={session_key}"))
 
-        me = pos_latest[pos_latest["driver_number"] == driver_number]
+    if not positions.empty and "driver_number" in positions.columns and "position" in positions.columns:
+        if "date" in positions.columns:
+            pos_snap = positions.sort_values("date").groupby("driver_number").tail(1)
+        else:
+            pos_snap = positions.groupby("driver_number").tail(1)
+
+        # Merge to get (driver_number, position, gap_to_leader, interval)
+        merged = pos_snap[["driver_number", "position"]].merge(
+            snap[[c for c in snap.columns if c in ["driver_number", "gap_to_leader", "interval"]]],
+            on="driver_number",
+            how="left"
+        ).sort_values("position")
+
+        me = merged[merged["driver_number"] == driver_number]
         if not me.empty:
-            my_pos = int(me.iloc[0].get("position")) if pd.notna(me.iloc[0].get("position")) else None
-            gap_leader = safe_str(me.iloc[0].get("gap_to_leader"), "-")
-            gap_ahead = safe_str(me.iloc[0].get("interval"), "-")
-
-            def acronym_for(num):
-                row = drivers_full[drivers_full["driver_number"] == num]
-                if not row.empty:
-                    return safe_str(row.iloc[0].get("name_acronym"), str(num))
-                return str(num)
+            my_pos = int(me.iloc[0]["position"]) if pd.notna(me.iloc[0]["position"]) else None
+            gap_leader = safe_str(me.iloc[0].get("gap_to_leader"), "--")
+            gap_ahead = safe_str(me.iloc[0].get("interval"), "--")
 
             if my_pos is not None:
-                ahead = pos_latest[pos_latest["position"] == my_pos - 1]
-                behind = pos_latest[pos_latest["position"] == my_pos + 1]
+                ahead = merged[merged["position"] == my_pos - 1]
+                behind = merged[merged["position"] == my_pos + 1]
 
                 if not ahead.empty:
                     ahead_num = int(ahead.iloc[0]["driver_number"])
@@ -424,7 +362,8 @@ if not positions.empty and "driver_number" in positions.columns:
                 if not behind.empty:
                     behind_num = int(behind.iloc[0]["driver_number"])
                     driver_behind = acronym_for(behind_num)
-                    gap_behind = safe_str(behind.iloc[0].get("interval"), "-")
+                    # Behind gap to us = behind driver's interval (to car ahead i.e. us)
+                    gap_behind = safe_str(behind.iloc[0].get("interval"), "--")
 
 # -----------------------------
 # TV-style Header (Broadcast Lower Third)
@@ -498,7 +437,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# Compact Cards below header
+# Gaps Card (now correct)
 # -----------------------------
 st.markdown(f"""
 <div class="card" style="margin-top:12px;">
@@ -520,27 +459,30 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Race progress
-if total_laps:
-    st.markdown(f"<div class='card' style='margin-top:12px;'><div class='sectionTitle'>🏁 Race Progress</div></div>",
-                unsafe_allow_html=True)
-    st.progress(min(current_lap_number / total_laps, 1.0))
-    st.caption(f"Lap {current_lap_number} / {total_laps}")
-
 # -----------------------------
-# Lap trend chart (broadcast dark)
+# Lap Trend Chart (FORCED DARK)
 # -----------------------------
 st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
 st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution</div>", unsafe_allow_html=True)
 
 chart_data = laps.dropna(subset=["lap_duration_num"])
 if not chart_data.empty:
-    fig = px.line(chart_data, x="lap_number", y="lap_duration_num", template="plotly_dark")
-    fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=360)
+    fig = px.line(chart_data, x="lap_number", y="lap_duration_num")
+    fig = plotly_force_dark(fig)
+    fig.update_layout(height=360)
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("No valid lap durations available to chart.")
 st.markdown("</div>", unsafe_allow_html=True)
+
+# -----------------------------
+# Race Progress
+# -----------------------------
+if total_laps:
+    st.markdown(f"<div class='card' style='margin-top:12px;'><div class='sectionTitle'>🏁 Race Progress</div></div>",
+                unsafe_allow_html=True)
+    st.progress(min(current_lap_number / total_laps, 1.0))
+    st.caption(f"Lap {current_lap_number} / {total_laps}")
 
 st.markdown("</div>", unsafe_allow_html=True)  # end container
 

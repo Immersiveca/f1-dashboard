@@ -316,17 +316,15 @@ col_logo, col_title = st.columns([1.8, 8], vertical_alignment="center")
 
 with col_logo:
     if logo_path:
-        # Use HTML image inside logo tile so we can enforce object-fit: contain
-        st.markdown(
-            f"<div class='logoTile'><img src='{logo_path}'/></div>",
-            unsafe_allow_html=True
-        )
+        st.markdown("<div class='logoTile'>", unsafe_allow_html=True)
+        st.image(logo_path, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.markdown(
             "<div class='logoTile' style='font-weight:900;color:#F8FAFC;'>F1</div>",
             unsafe_allow_html=True
         )
-
+      
 with col_title:
     st.markdown("""
     <div class="appTitleText">

@@ -670,18 +670,68 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Lap Trend Chart
+# -----------------------------
+# Lap Trend Chart (Compare: Me vs Ahead vs Behind)
+# -----------------------------
 st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
-st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution</div>", unsafe_allow_html=True)
+st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution (Comparison)</div>", unsafe_allow_html=True)
 
-chart_data = laps.dropna(subset=["lap_duration_num"])
-if not chart_data.empty:
-    fig = px.line(chart_data, x="lap_number", y="lap_duration_num")
-    fig = plotly_force_dark(fig)
-    fig.update_layout(height=360)
-    st.plotly_chart(fig, use_container_width=True)
+@st.cache_data(ttl=10)
+def load_driver_laps(session_key: int, driver_num: int):
+    df = pd.DataFrame(get_json(f"laps?session_key={session_key}&driver_number={driver_num}"))
+    if df.empty or "lap_number" not in df.columns:
+        return df
+    df = df.sort_values("lap_number")
+    if "lap_duration" in df.columns:
+        df["lap_duration_num"] = pd.to_numeric(df["lap_duration"], errors="coerce")
+    elif "lap_time" in df.columns:
+        df["lap_duration_num"] = pd.to_numeric(df["lap_time"], errors="coerce")
+    else:
+        df["lap_duration_num"] = pd.NA
+    return df[["lap_number", "lap_duration_num"]].dropna(subset=["lap_duration_num"])
+
+series = []
+
+# Me
+me_df = load_driver_laps(session_key, int(driver_number))
+if not me_df.empty:
+    me_df = me_df.copy()
+    me_df["Driver"] = f"{acr} (You)"
+    series.append(me_df)
+
+# Ahead
+if ahead_number is not None:
+    a_df = load_driver_laps(session_key, int(ahead_number))
+    if not a_df.empty:
+        a_df = a_df.copy()
+        a_df["Driver"] = f"{driver_ahead} (Ahead)"
+        series.append(a_df)
+
+# Behind
+if behind_number is not None:
+    b_df = load_driver_laps(session_key, int(behind_number))
+    if not b_df.empty:
+        b_df = b_df.copy()
+        b_df["Driver"] = f"{driver_behind} (Behind)"
+        series.append(b_df)
+
+if not series:
+    st.info("No lap data available to compare.")
 else:
-    st.info("No valid lap durations available to chart.")
+    plot_df = pd.concat(series, ignore_index=True)
+
+    # Optional: keep only laps up to current lap (reduces noisy tail)
+    plot_df = plot_df[plot_df["lap_number"] <= current_lap_number]
+
+    fig = px.line(
+        plot_df,
+        x="lap_number",
+        y="lap_duration_num",
+        color="Driver",
+    )
+    fig = plotly_force_dark(fig)
+    fig.update_layout(height=380, legend_title_text="")
+    st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 

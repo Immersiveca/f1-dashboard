@@ -17,7 +17,7 @@ st.set_page_config(
 OPENF1_BASE = "https://api.openf1.org/v1"
 
 # -----------------------------
-# TV Broadcast Styling (Mobile-first, True Black + tight)
+# TV Broadcast Styling (Mobile-first, True Black + NO top blank space)
 # -----------------------------
 st.markdown("""
 <style>
@@ -41,12 +41,34 @@ st.markdown("""
   background: var(--bg) !important;
 }
 
-/* Reduce Streamlit default padding */
+/* --- KILL THE TOP BLANK SPACE (Streamlit mobile header spacer) --- */
+header[data-testid="stHeader"]{
+  height: 0 !important;
+  min-height: 0 !important;
+  visibility: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+div[data-testid="stToolbar"]{
+  height: 0 !important;
+  min-height: 0 !important;
+  visibility: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+div[data-testid="stAppViewContainer"] > .main{
+  padding-top: 0 !important;
+}
+section.main > div{
+  padding-top: 0 !important;
+}
 .block-container{
-  padding-top: 0.75rem !important;
+  padding-top: 0.25rem !important;  /* tiny breathing room */
   padding-bottom: 1.25rem !important;
+  margin-top: 0 !important;
 }
 
+/* Base colors */
 html, body, [class*="css"] {
   background-color: var(--bg) !important;
   color: var(--text) !important;
@@ -57,7 +79,7 @@ html, body, [class*="css"] {
 footer {visibility: hidden;}
 header {visibility: hidden;}
 
-/* ✅ Optional “F1 Broadcast” label styling: WHITE labels */
+/* ✅ “F1 Broadcast” label styling: WHITE labels */
 .stSelectbox > label,
 .stRadio > label,
 .stToggle > label,
@@ -437,12 +459,12 @@ drivers_full = pd.DataFrame(drivers_data)
 driver_map = {}
 for d in drivers_data:
     dn = d.get("driver_number")
-    acr = d.get("name_acronym", "?")
+    acr2 = d.get("name_acronym", "?")
     if dn is not None:
-        driver_map[f"{acr} ({dn})"] = int(dn)
+        driver_map[f"{acr2} ({dn})"] = int(dn)
 
 selected_driver = st.selectbox("Driver", list(driver_map.keys()))
-driver_number = driver_map[selected_driver]
+driver_number = int(driver_map[selected_driver])
 
 # -----------------------------
 # Load Laps + Stints
@@ -495,7 +517,7 @@ team_colour = normalize_hex_color(me_driver.iloc[0].get("team_colour")) if (not 
 full_name = safe_str(me_driver.iloc[0].get("full_name")) if (not me_driver.empty and "full_name" in me_driver.columns) else acr
 
 # -----------------------------
-# GAPS via /intervals (leader/ahead) + /positions (who is ahead/behind)
+# GAPS via /intervals + /positions + capture ahead/behind driver_numbers
 # -----------------------------
 intervals = pd.DataFrame(get_json(f"intervals?session_key={session_key}"))
 driver_ahead = "-"
@@ -504,6 +526,9 @@ gap_ahead = "--"
 gap_behind = "--"
 gap_leader = "--"
 my_pos = None
+
+ahead_number = None
+behind_number = None
 
 def acronym_for(num):
     row = drivers_full[drivers_full["driver_number"] == num]
@@ -541,10 +566,12 @@ if not intervals.empty and "driver_number" in intervals.columns:
                 behind = merged[merged["position"] == my_pos + 1]
 
                 if not ahead.empty:
-                    driver_ahead = acronym_for(int(ahead.iloc[0]["driver_number"]))
+                    ahead_number = int(ahead.iloc[0]["driver_number"])
+                    driver_ahead = acronym_for(ahead_number)
 
                 if not behind.empty:
-                    driver_behind = acronym_for(int(behind.iloc[0]["driver_number"]))
+                    behind_number = int(behind.iloc[0]["driver_number"])
+                    driver_behind = acronym_for(behind_number)
                     gap_behind = safe_str(behind.iloc[0].get("interval"), "--")
 
 # -----------------------------
@@ -579,7 +606,6 @@ def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
         if comp == "WET":
             short = "W"
 
-        # readable text color
         text_color = "#000000"
         if comp in ["SOFT", "WET"]:
             text_color = "#FFFFFF"
@@ -588,7 +614,6 @@ def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
             f"<div class='stintSeg' style='width:{w:.2f}%; background:{color}; color:{text_color};'>{short}</div>"
         )
 
-        # Mark tire change lap (stint start except the first)
         if ls != first_ls:
             x = (ls / total) * 100.0
             markers.append(f"<div class='marker' style='left:{x:.2f}%;'>L{ls}</div>")
@@ -600,6 +625,23 @@ def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int):
 </div>
 """
     return textwrap.dedent(html).strip()
+
+# -----------------------------
+# Lap Trend Chart (Compare: Me vs Ahead vs Behind)
+# -----------------------------
+@st.cache_data(ttl=10)
+def load_driver_laps(session_key_int: int, driver_num_int: int):
+    df = pd.DataFrame(get_json(f"laps?session_key={session_key_int}&driver_number={driver_num_int}"))
+    if df.empty or "lap_number" not in df.columns:
+        return df
+    df = df.sort_values("lap_number")
+    if "lap_duration" in df.columns:
+        df["lap_duration_num"] = pd.to_numeric(df["lap_duration"], errors="coerce")
+    elif "lap_time" in df.columns:
+        df["lap_duration_num"] = pd.to_numeric(df["lap_time"], errors="coerce")
+    else:
+        df["lap_duration_num"] = pd.NA
+    return df[["lap_number", "lap_duration_num"]].dropna(subset=["lap_duration_num"])
 
 # -----------------------------
 # Render Broadcast Header + Cards
@@ -670,22 +712,56 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Lap Trend Chart
+# -----------------------------
+# Lap Time Evolution (Comparison Chart)
+# -----------------------------
 st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
-st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution</div>", unsafe_allow_html=True)
+st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution (Comparison)</div>", unsafe_allow_html=True)
 
-chart_data = laps.dropna(subset=["lap_duration_num"])
-if not chart_data.empty:
-    fig = px.line(chart_data, x="lap_number", y="lap_duration_num")
-    fig = plotly_force_dark(fig)
-    fig.update_layout(height=360)
-    st.plotly_chart(fig, use_container_width=True)
+series = []
+
+# Me
+me_df = load_driver_laps(int(session_key), int(driver_number))
+if not me_df.empty:
+    me_df = me_df.copy()
+    me_df["Driver"] = f"{acr} (You)"
+    series.append(me_df)
+
+# Ahead
+if ahead_number is not None:
+    a_df = load_driver_laps(int(session_key), int(ahead_number))
+    if not a_df.empty:
+        a_df = a_df.copy()
+        a_df["Driver"] = f"{driver_ahead} (Ahead)"
+        series.append(a_df)
+
+# Behind
+if behind_number is not None:
+    b_df = load_driver_laps(int(session_key), int(behind_number))
+    if not b_df.empty:
+        b_df = b_df.copy()
+        b_df["Driver"] = f"{driver_behind} (Behind)"
+        series.append(b_df)
+
+if not series:
+    st.info("No lap data available to compare.")
 else:
-    st.info("No valid lap durations available to chart.")
+    plot_df = pd.concat(series, ignore_index=True)
+    plot_df = plot_df[plot_df["lap_number"] <= current_lap_number]
+
+    fig = px.line(
+        plot_df,
+        x="lap_number",
+        y="lap_duration_num",
+        color="Driver",
+    )
+    fig = plotly_force_dark(fig)
+    fig.update_layout(height=380, legend_title_text="")
+    st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Race Progress
+# Race progress
 if total_laps:
     st.markdown("<div class='card' style='margin-top:12px;'><div class='sectionTitle'>🏁 Race Progress</div></div>",
                 unsafe_allow_html=True)

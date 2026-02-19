@@ -6,7 +6,7 @@ import time
 import math
 import os
 import textwrap
-from datetime import datetime, timezone
+import base64
 
 st.set_page_config(
     page_title="F1 Live Analytics by MPH",
@@ -17,14 +17,19 @@ OPENF1_BASE = "https://api.openf1.org/v1"
 OPENF1_TOKEN_URL = "https://api.openf1.org/token"
 
 # -----------------------------
-# TV Broadcast Styling (Mobile-first, True Black + NO top blank space)
+# HTML render helper (prevents "code showing")
 # -----------------------------
-st.markdown("""
+def render_html(html: str):
+    st.markdown(textwrap.dedent(html).strip(), unsafe_allow_html=True)
+
+# -----------------------------
+# TV Broadcast Styling (True Black + kill top padding)
+# -----------------------------
+render_html("""
 <style>
 :root{
   --bg: #000000;
   --panel: rgba(255,255,255,0.07);
-  --panel2: rgba(255,255,255,0.10);
   --border: rgba(255,255,255,0.16);
   --text: #F8FAFC;
   --muted: #C7D0DB;
@@ -33,7 +38,6 @@ st.markdown("""
   --red: #E10600;
 }
 
-/* Force the whole Streamlit app to be black */
 .stApp,
 [data-testid="stAppViewContainer"],
 [data-testid="stHeader"],
@@ -55,10 +59,9 @@ html, body, [class*="css"] {
   color: var(--text) !important;
 }
 
-/* Hide Streamlit chrome */
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {visibility: hidden;}
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header {visibility:hidden;}
 
 /* White labels for inputs */
 .stSelectbox > label,
@@ -66,14 +69,13 @@ header {visibility: hidden;}
 .stToggle > label,
 .stNumberInput > label,
 .stSlider > label {
-    color: #FFFFFF !important;
-    font-weight: 800 !important;
-    letter-spacing: 0.5px;
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.5px;
 }
 
 .container { width: 100%; max-width: 1100px; margin: 0 auto; }
 
-/* Header */
 .appTitleText {
   font-size: 30px;
   font-weight: 900;
@@ -82,26 +84,23 @@ header {visibility: hidden;}
   text-shadow: 0 2px 10px rgba(0,0,0,0.65);
   line-height: 1.05;
 }
-.appSubtitle {
-  font-size: 13px;
-  color: var(--muted2);
-  margin-top: 4px;
-}
+.appSubtitle { font-size: 13px; color: var(--muted2); margin-top: 4px; }
 
-/* Logo tile */
 .logoTile{
-  width: 180px;
-  height: 110px;
+  width: 180px; height: 110px;
   border-radius: 18px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.14);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  overflow: hidden;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+}
+.logoTile img{
+  width:100%;
+  height:100%;
+  object-fit: cover; /* keeps it filled, no weird empty block */
+  display:block;
 }
 
-/* Broadcast bar */
 .topbar {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -122,17 +121,10 @@ header {visibility: hidden;}
   display:flex; flex-direction:column; justify-content:center; align-items:center;
   position: relative; overflow: hidden;
 }
+.teamStripe { position:absolute; top:0; left:0; right:0; height: 10px; }
 
-.teamStripe { position:absolute; top:0; left:0; right:0; height: 10px; opacity: 1; }
-
-.acr {
-  font-size: 26px; font-weight: 900; letter-spacing: 1px;
-  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65);
-}
-.num {
-  margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 800;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
-}
+.acr { font-size: 26px; font-weight: 900; letter-spacing: 1px; color: var(--text); }
+.num { margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 800; }
 
 .driverMeta { display:flex; flex-direction:column; gap: 8px; }
 .raceLine { display:flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
@@ -142,13 +134,10 @@ header {visibility: hidden;}
   background: rgba(255,255,255,0.10);
   border: 1px solid rgba(255,255,255,0.16);
   color: var(--text); font-size: 12px; line-height: 1; white-space: nowrap;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
-
 .pillStrong {
   background: rgba(225,6,0,0.26);
   border: 1px solid rgba(225,6,0,0.50);
-  color: var(--text);
   font-weight: 900;
 }
 
@@ -158,117 +147,31 @@ header {visibility: hidden;}
   padding: 12px; border-radius: 16px;
   background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.16);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
-
-.kpiLabel {
-  font-size: 11px; letter-spacing: 0.6px; color: var(--muted2);
-  margin-bottom: 6px; font-weight: 800; text-transform: uppercase;
-}
-
-.kpiValue {
-  font-size: 18px; font-weight: 900; letter-spacing: 0.35px;
-  color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65);
-}
-
+.kpiLabel { font-size: 11px; letter-spacing: 0.6px; color: var(--muted2); margin-bottom: 6px; font-weight: 800; text-transform: uppercase; }
+.kpiValue { font-size: 18px; font-weight: 900; color: var(--text); }
 .small-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
-.card {
-  padding: 12px; border-radius: 16px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.14);
-}
+.card { padding: 12px; border-radius: 16px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); }
+.sectionTitle { font-weight: 900; letter-spacing: 0.4px; margin: 6px 0 10px 0; color: var(--text); }
 
-.sectionTitle {
-  font-weight: 900; letter-spacing: 0.4px;
-  margin: 6px 0 10px 0; color: var(--text);
-  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
-}
+.tireDot { display:inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; transform: translateY(1px); box-shadow: 0 0 0 2px rgba(0,0,0,0.45); }
 
-.tireDot {
-  display:inline-block; width: 10px; height: 10px; border-radius: 999px;
-  margin-right: 6px; transform: translateY(1px);
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.45);
-}
+.statusPill{ display:inline-flex; align-items:center; gap:8px; font-weight: 900; }
+.statusDot{ width:10px; height:10px; border-radius:999px; box-shadow: 0 0 0 2px rgba(0,0,0,0.45); }
 
-/* Status pill */
-.statusPill{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  font-weight: 900;
-}
-.statusDot{
-  width:10px;
-  height:10px;
-  border-radius:999px;
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.45);
-}
-
-/* Gaps */
 .gapGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-
-.gapCell {
-  padding: 12px; border-radius: 16px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-}
-
+.gapCell { padding: 12px; border-radius: 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); }
 .gapDir { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 800; }
-.gapVal { font-size: 16px; font-weight: 900; color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65); }
+.gapVal { font-size: 16px; font-weight: 900; color: var(--text); }
 
-/* Stint timeline */
-.timelineWrap{
-  width:100%;
-  border-radius: 14px;
-  padding: 10px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.10);
-}
-.timelineBar{
-  width:100%;
-  height: 18px;
-  border-radius: 999px;
-  overflow:hidden;
-  display:flex;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.06);
-}
-.stintSeg{
-  height: 100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size: 11px;
-  font-weight: 900;
-}
+.timelineWrap{ width:100%; border-radius: 14px; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10); }
+.timelineBar{ width:100%; height: 18px; border-radius: 999px; overflow:hidden; display:flex; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); }
+.stintSeg{ height: 100%; display:flex; align-items:center; justify-content:center; font-size: 11px; font-weight: 900; }
 
-/* Lap markers under the bar */
-.markerRow{
-  position: relative;
-  height: 20px;
-  margin-top: 8px;
-}
-.marker{
-  position:absolute;
-  top: 0;
-  transform: translateX(-50%);
-  font-size: 11px;
-  font-weight: 900;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.marker:before{
-  content:"";
-  position:absolute;
-  top: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 6px;
-  background: rgba(255,255,255,0.22);
-  border-radius: 2px;
-}
+.markerRow{ position: relative; height: 20px; margin-top: 8px; }
+.marker{ position:absolute; top: 0; transform: translateX(-50%); font-size: 11px; font-weight: 900; color: var(--muted); white-space: nowrap; }
+.marker:before{ content:""; position:absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 2px; height: 6px; background: rgba(255,255,255,0.22); border-radius: 2px; }
 
 @media (max-width: 920px) {
   .topbar { grid-template-columns: 1fr; }
@@ -280,7 +183,7 @@ header {visibility: hidden;}
   .logoTile{ width: 160px; height: 104px; }
 }
 </style>
-""", unsafe_allow_html=True)
+""")
 
 # -----------------------------
 # Debug toggle
@@ -288,9 +191,9 @@ header {visibility: hidden;}
 debug = st.toggle("Debug (show API status)", value=False)
 
 # -----------------------------
-# OpenF1 OAuth Token (username/password -> access_token)
+# OAuth token
 # -----------------------------
-@st.cache_data(ttl=300)  # cache token for 5 minutes
+@st.cache_data(ttl=300)
 def get_openf1_token():
     try:
         username = st.secrets.get("OPENF1_USERNAME", None)
@@ -315,13 +218,7 @@ def get_openf1_token():
         return None
 
 def get_json(endpoint: str):
-    """
-    Tries with Bearer token (if available).
-    If OpenF1 rejects auth for that endpoint (401/403),
-    automatically retries WITHOUT auth (so public endpoints still work).
-    """
     url = f"{OPENF1_BASE}/{endpoint}"
-
     token = get_openf1_token()
     headers_auth = {"Authorization": f"Bearer {token}"} if token else None
 
@@ -351,8 +248,15 @@ def get_json(endpoint: str):
 # -----------------------------
 # Helpers
 # -----------------------------
+def safe_str(x, default="-"):
+    if x is None:
+        return default
+    if isinstance(x, float) and math.isnan(x):
+        return default
+    s = str(x).strip()
+    return s if s else default
+
 def format_lap_time(value):
-    """Format lap time seconds into mm.ss.sss"""
     try:
         if value is None:
             return "--"
@@ -368,14 +272,6 @@ def format_lap_time(value):
 def tire_color(compound: str):
     colors = {"SOFT":"#ff2e2e","MEDIUM":"#ffd800","HARD":"#ffffff","INTERMEDIATE":"#00ff66","WET":"#0099ff"}
     return colors.get((compound or "").upper(), "#aaaaaa")
-
-def safe_str(x, default="-"):
-    if x is None:
-        return default
-    if isinstance(x, float) and math.isnan(x):
-        return default
-    s = str(x).strip()
-    return s if s else default
 
 def normalize_hex_color(c):
     c = safe_str(c, "")
@@ -410,16 +306,13 @@ def _to_dt(x):
     except:
         return pd.NaT
 
+# -----------------------------
+# DRIVER STATUS: ON TRACK / IN PIT / OUT
+# -----------------------------
 def get_driver_status(session_key: int, driver_number: int, refresh_seconds: int):
-    """
-    Returns (label, color_hex)
-    - ON TRACK  -> green
-    - IN PIT    -> yellow
-    - OUT       -> red
-    """
     now = pd.Timestamp.now(tz="UTC")
 
-    # 1) OUT detection via race_control
+    # OUT via race_control
     rc = pd.DataFrame(get_json(f"race_control?session_key={session_key}&driver_number={driver_number}"))
     if not rc.empty and "date" in rc.columns:
         rc["date_dt"] = rc["date"].apply(_to_dt)
@@ -428,12 +321,12 @@ def get_driver_status(session_key: int, driver_number: int, refresh_seconds: int
 
         msg = str(last_rc.get("message", "")).upper()
         cat = str(last_rc.get("category", "")).upper()
-
         out_keywords = ["RETIRED", "RETIREMENT", "STOPPED", "OUT", "DNF", "WITHDREW", "NOT CLASSIFIED"]
+
         if any(k in msg for k in out_keywords) and (cat in ["CAREVENT", "SESSIONSTATUS", "FLAG"] or "CAR" in msg):
             return ("OUT", "#FF1744")
 
-    # 2) IN PIT detection via pit endpoint (recent pit record)
+    # IN PIT via pit endpoint (recent)
     pit = pd.DataFrame(get_json(f"pit?session_key={session_key}&driver_number={driver_number}"))
     if not pit.empty and "date" in pit.columns:
         pit["date_dt"] = pit["date"].apply(_to_dt)
@@ -444,56 +337,53 @@ def get_driver_status(session_key: int, driver_number: int, refresh_seconds: int
         if pd.notna(last_pit_time) and (now - last_pit_time).total_seconds() <= window_s:
             return ("IN PIT", "#FFD600")
 
-    # 3) Fallback: car_data low speed suggests pit (heuristic)
-    car = pd.DataFrame(get_json(f"car_data?session_key={session_key}&driver_number={driver_number}"))
-    if not car.empty:
-        if "date" in car.columns:
-            car["date_dt"] = car["date"].apply(_to_dt)
-            car = car.sort_values("date_dt")
-        last = car.iloc[-1].to_dict()
-        speed = last.get("speed", None)
-        try:
-            speed = float(speed) if speed is not None else None
-        except:
-            speed = None
-
-        # Very low speed and near-zero acceleration often means pit/garage
-        if speed is not None and speed <= 30:
-            return ("IN PIT", "#FFD600")
-
-    # Default
     return ("ON TRACK", "#00E676")
 
 # -----------------------------
-# Header (logo)
+# Logo: base64 embed (FIXES empty tile + huge logo)
+# -----------------------------
+def load_logo_base64():
+    candidates = [
+        "2026 F1 logo.png",
+        "assets/2026 F1 logo.png",
+        "images/2026 F1 logo.png",
+    ]
+    path = next((p for p in candidates if os.path.exists(p)), None)
+    if not path:
+        return None
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:image/png;base64,{b64}"
+
+# -----------------------------
+# Header
 # -----------------------------
 st.markdown("<div class='container'>", unsafe_allow_html=True)
 
-logo_path_candidates = [
-    "2026 F1 logo.png",
-    "assets/2026 F1 logo.png",
-    "images/2026 F1 logo.png",
-]
-logo_path = next((p for p in logo_path_candidates if os.path.exists(p)), None)
+logo_src = load_logo_base64()
 
 col_logo, col_title = st.columns([1.8, 8], vertical_alignment="center")
 with col_logo:
-    st.markdown("<div class='logoTile'>", unsafe_allow_html=True)
-    if logo_path:
-        st.image(logo_path, use_container_width=True)
+    if logo_src:
+        render_html(f"""
+        <div class="logoTile">
+          <img src="{logo_src}" alt="F1 Logo"/>
+        </div>
+        """)
     else:
-        st.markdown("<div style='font-weight:900;color:#F8FAFC;'>F1</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        render_html("""
+        <div class="logoTile" style="font-weight:900;color:#F8FAFC;">F1</div>
+        """)
 
 with col_title:
-    st.markdown("""
+    render_html("""
     <div class="appTitleText">
         F1 LIVE ANALYTICS <span style="color:#E10600;">BY MPH</span>
     </div>
     <div class="appSubtitle">
         Season → Race → Session • Broadcast Style Dashboard
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 # -----------------------------
 # Season → Meeting → Session
@@ -555,11 +445,9 @@ session_options = {
 sel_session_label = st.selectbox("Session", list(session_options.keys()))
 session_key = session_options[sel_session_label]
 
-# Auto Refresh selector default 10s
 refresh_choice = st.selectbox("Auto Refresh", ["Off", "5s", "10s", "20s"], index=2)
 refresh_seconds = {"Off": 0, "5s": 5, "10s": 10, "20s": 20}[refresh_choice]
 
-# Pull session info
 session_data = get_json(f"sessions?session_key={session_key}")
 session_name = safe_str(session_data[0].get("session_name")) if session_data else safe_str(sel_session_label)
 location = safe_str(session_data[0].get("location")) if session_data else safe_str(sel_meeting_label)
@@ -609,10 +497,9 @@ previous_lap = laps.iloc[-2] if len(laps) > 1 else None
 current_lap_number = int(current_lap["lap_number"])
 
 valid_laps = laps[laps["lap_duration_num"].notna()].copy()
-if valid_laps.empty:
-    best_lap = None
-    best_lap_number = None
-else:
+best_lap = None
+best_lap_number = None
+if not valid_laps.empty:
     best_lap = valid_laps.loc[valid_laps["lap_duration_num"].idxmin()]
     best_lap_number = int(best_lap["lap_number"])
 
@@ -636,7 +523,7 @@ team_colour = normalize_hex_color(me_driver.iloc[0].get("team_colour")) if (not 
 full_name = safe_str(me_driver.iloc[0].get("full_name")) if (not me_driver.empty and "full_name" in me_driver.columns) else acr
 
 # -----------------------------
-# GAPS via /intervals + /positions + capture ahead/behind driver_numbers
+# GAPS via /intervals + /positions
 # -----------------------------
 intervals = pd.DataFrame(get_json(f"intervals?session_key={session_key}"))
 driver_ahead = "-"
@@ -649,17 +536,11 @@ ahead_number = None
 behind_number = None
 
 if not intervals.empty and "driver_number" in intervals.columns:
-    if "date" in intervals.columns:
-        snap = intervals.sort_values("date").groupby("driver_number").tail(1)
-    else:
-        snap = intervals.groupby("driver_number").tail(1)
+    snap = intervals.sort_values("date").groupby("driver_number").tail(1) if "date" in intervals.columns else intervals.groupby("driver_number").tail(1)
 
     positions = pd.DataFrame(get_json(f"positions?session_key={session_key}"))
     if not positions.empty and "driver_number" in positions.columns and "position" in positions.columns:
-        if "date" in positions.columns:
-            pos_snap = positions.sort_values("date").groupby("driver_number").tail(1)
-        else:
-            pos_snap = positions.groupby("driver_number").tail(1)
+        pos_snap = positions.sort_values("date").groupby("driver_number").tail(1) if "date" in positions.columns else positions.groupby("driver_number").tail(1)
 
         merged = pos_snap[["driver_number", "position"]].merge(
             snap[[c for c in snap.columns if c in ["driver_number", "gap_to_leader", "interval"]]],
@@ -687,59 +568,44 @@ if not intervals.empty and "driver_number" in intervals.columns:
                     gap_behind = safe_str(behind.iloc[0].get("interval"), "--")
 
 # -----------------------------
-# Stint timeline: markers only
+# Stint Timeline HTML
 # -----------------------------
 def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int, current_lap_num: int):
     if stints_df.empty or not all(c in stints_df.columns for c in ["lap_start", "lap_end", "compound"]):
         return "<div class='timelineWrap'><div style='color:rgba(255,255,255,0.55);'>No stint data available.</div></div>"
 
     df = stints_df.sort_values("lap_start").copy()
-
-    if total_laps_hint and isinstance(total_laps_hint, (int, float)) and total_laps_hint > 0:
-        total = int(total_laps_hint)
-    else:
-        total = int(max(df["lap_end"].max(), current_lap_num))
+    total = int(total_laps_hint) if total_laps_hint else int(max(df["lap_end"].max(), current_lap_num))
 
     segs, markers = [], []
-
     first_ls = int(df.iloc[0]["lap_start"])
+
     for _, r in df.iterrows():
-        ls = int(r["lap_start"])
-        le = int(r["lap_end"])
+        ls = int(r["lap_start"]); le = int(r["lap_end"])
         comp = safe_str(r["compound"], "-").upper()
         color = tire_color(comp)
 
         length = max(le - ls + 1, 1)
         w = (length / total) * 100.0
 
-        short = comp[:1]
-        if comp == "INTERMEDIATE":
-            short = "I"
-        if comp == "WET":
-            short = "W"
+        short = "I" if comp == "INTERMEDIATE" else ("W" if comp == "WET" else comp[:1])
+        text_color = "#000000" if comp not in ["SOFT", "WET"] else "#FFFFFF"
 
-        text_color = "#000000"
-        if comp in ["SOFT", "WET"]:
-            text_color = "#FFFFFF"
-
-        segs.append(
-            f"<div class='stintSeg' style='width:{w:.2f}%; background:{color}; color:{text_color};'>{short}</div>"
-        )
+        segs.append(f"<div class='stintSeg' style='width:{w:.2f}%; background:{color}; color:{text_color};'>{short}</div>")
 
         if ls != first_ls:
             x = (ls / total) * 100.0
             markers.append(f"<div class='marker' style='left:{x:.2f}%;'>L{ls}</div>")
 
-    html = f"""
-<div class="timelineWrap">
-  <div class="timelineBar">{''.join(segs)}</div>
-  <div class="markerRow">{''.join(markers)}</div>
-</div>
-"""
-    return textwrap.dedent(html).strip()
+    return textwrap.dedent(f"""
+    <div class="timelineWrap">
+      <div class="timelineBar">{''.join(segs)}</div>
+      <div class="markerRow">{''.join(markers)}</div>
+    </div>
+    """).strip()
 
 # -----------------------------
-# Lap Trend Chart (Compare: Me vs Ahead vs Behind)
+# Comparison Chart loader
 # -----------------------------
 @st.cache_data(ttl=10)
 def load_driver_laps(session_key_int: int, driver_num_int: int):
@@ -756,14 +622,13 @@ def load_driver_laps(session_key_int: int, driver_num_int: int):
     return df[["lap_number", "lap_duration_num"]].dropna(subset=["lap_duration_num"])
 
 # -----------------------------
-# Driver Status (ON TRACK / IN PIT / OUT)
+# Driver status pill
 # -----------------------------
 status_label, status_color = get_driver_status(
     session_key=int(session_key),
     driver_number=int(driver_number),
     refresh_seconds=int(refresh_seconds) if refresh_seconds else 10
 )
-
 status_html = f"""
 <span class="pill statusPill">
   <span class="statusDot" style="background:{status_color};"></span>
@@ -772,7 +637,7 @@ status_html = f"""
 """
 
 # -----------------------------
-# Render TV header + cards
+# Render TV header
 # -----------------------------
 cur_time_str = format_lap_time(current_lap.get("lap_duration_num"))
 prev_time_str = format_lap_time(previous_lap.get("lap_duration_num")) if previous_lap is not None else "--"
@@ -784,7 +649,7 @@ lap_pill = f"LAP {current_lap_number}/{total_laps}" if total_laps else f"LAP {cu
 current_tire_dot = tire_color(current_tire)
 best_tire_dot = tire_color(best_lap_tire)
 
-st.markdown(f"""
+render_html(f"""
 <div class="topbar">
   <div class="leftBlock">
     <div class="driverBadge">
@@ -819,10 +684,10 @@ st.markdown(f"""
     <div class="kpi"><div class="kpiLabel">Driver</div><div class="kpiValue">{safe_str(full_name, acr)}</div><div class="small-note">{safe_str(team)}</div></div>
   </div>
 </div>
-""", unsafe_allow_html=True)
+""")
 
 # Gaps card
-st.markdown(f"""
+render_html(f"""
 <div class="card" style="margin-top:12px;">
   <div class="sectionTitle">📏 Gaps</div>
   <div class="gapGrid">
@@ -831,68 +696,63 @@ st.markdown(f"""
     <div class="gapCell"><div class="gapDir">⬇ {safe_str(driver_behind, "-")}</div><div class="gapVal">{safe_str(gap_behind, "--")}</div></div>
   </div>
 </div>
-""", unsafe_allow_html=True)
+""")
 
 # Stint timeline card
-st.markdown(f"""
+render_html(f"""
 <div class="card" style="margin-top:12px;">
   <div class="sectionTitle">🛞 Stint Timeline</div>
   {stint_timeline_html(stints, int(total_laps) if total_laps else 0, current_lap_number)}
 </div>
-""", unsafe_allow_html=True)
+""")
 
-# Lap Time Evolution (Comparison Chart)
-st.markdown("<div class='card' style='margin-top:12px;'>", unsafe_allow_html=True)
-st.markdown("<div class='sectionTitle'>📊 Lap Time Evolution (Comparison)</div>", unsafe_allow_html=True)
+# Comparison chart
+render_html("""
+<div class='card' style='margin-top:12px;'>
+  <div class='sectionTitle'>📊 Lap Time Evolution (Comparison)</div>
+</div>
+""")
 
 series = []
-
 me_df = load_driver_laps(int(session_key), int(driver_number))
 if not me_df.empty:
-    me_df = me_df.copy()
-    me_df["Driver"] = f"{acr} (You)"
-    series.append(me_df)
+    tmp = me_df.copy()
+    tmp["Driver"] = f"{acr} (You)"
+    series.append(tmp)
 
 if ahead_number is not None:
     a_df = load_driver_laps(int(session_key), int(ahead_number))
     if not a_df.empty:
-        a_df = a_df.copy()
-        a_df["Driver"] = f"{driver_ahead} (Ahead)"
-        series.append(a_df)
+        tmp = a_df.copy()
+        tmp["Driver"] = f"{driver_ahead} (Ahead)"
+        series.append(tmp)
 
 if behind_number is not None:
     b_df = load_driver_laps(int(session_key), int(behind_number))
     if not b_df.empty:
-        b_df = b_df.copy()
-        b_df["Driver"] = f"{driver_behind} (Behind)"
-        series.append(b_df)
+        tmp = b_df.copy()
+        tmp["Driver"] = f"{driver_behind} (Behind)"
+        series.append(tmp)
 
 if not series:
     st.info("No lap data available to compare.")
 else:
     plot_df = pd.concat(series, ignore_index=True)
     plot_df = plot_df[plot_df["lap_number"] <= current_lap_number]
-
-    fig = px.line(
-        plot_df,
-        x="lap_number",
-        y="lap_duration_num",
-        color="Driver",
-    )
+    fig = px.line(plot_df, x="lap_number", y="lap_duration_num", color="Driver")
     fig = plotly_force_dark(fig)
     fig.update_layout(height=380, legend_title_text="")
     st.plotly_chart(fig, use_container_width=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
-
 # Race progress
 if total_laps:
-    st.markdown("<div class='card' style='margin-top:12px;'><div class='sectionTitle'>🏁 Race Progress</div></div>",
-                unsafe_allow_html=True)
+    render_html("""
+    <div class='card' style='margin-top:12px;'>
+      <div class='sectionTitle'>🏁 Race Progress</div>
+    </div>
+    """)
     st.progress(min(current_lap_number / total_laps, 1.0))
     st.caption(f"Lap {current_lap_number} / {total_laps}")
-
-st.markdown("</div>", unsafe_allow_html=True)  # end container
 
 # Auto refresh
 if refresh_seconds > 0:

@@ -6,6 +6,7 @@ import time
 import math
 import os
 import textwrap
+from datetime import datetime, timezone
 
 st.set_page_config(
     page_title="F1 Live Analytics by MPH",
@@ -40,44 +41,15 @@ st.markdown("""
   background: var(--bg) !important;
 }
 
-/* ============================
-   HARD KILL TOP BLANK SPACE
-   (Streamlit Cloud + iOS Safari)
-   ============================ */
-div[data-testid="stAppHeader"]{
-  height: 0 !important;
-  min-height: 0 !important;
-  display: none !important;
-}
-header[data-testid="stHeader"]{
-  height: 0 !important;
-  min-height: 0 !important;
-  display: none !important;
-}
-div[data-testid="stDecoration"]{
-  height: 0 !important;
-  display: none !important;
-}
-div[data-testid="stToolbar"]{
-  height: 0 !important;
-  min-height: 0 !important;
-  display: none !important;
-}
-div[data-testid="stAppViewContainer"] > .main{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
-section.main > div{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
-.block-container{
-  padding-top: 0.25rem !important;  /* tiny breathing room */
-  padding-bottom: 1.25rem !important;
-  margin-top: 0 !important;
-}
+/* HARD KILL TOP BLANK SPACE */
+div[data-testid="stAppHeader"]{height:0!important;min-height:0!important;display:none!important;}
+header[data-testid="stHeader"]{height:0!important;min-height:0!important;display:none!important;}
+div[data-testid="stDecoration"]{height:0!important;display:none!important;}
+div[data-testid="stToolbar"]{height:0!important;min-height:0!important;display:none!important;}
+div[data-testid="stAppViewContainer"] > .main{padding-top:0!important;margin-top:0!important;}
+section.main > div{padding-top:0!important;margin-top:0!important;}
+.block-container{padding-top:0.25rem!important;padding-bottom:1.25rem!important;margin-top:0!important;}
 
-/* Base colors */
 html, body, [class*="css"] {
   background-color: var(--bg) !important;
   color: var(--text) !important;
@@ -88,7 +60,7 @@ html, body, [class*="css"] {
 footer {visibility: hidden;}
 header {visibility: hidden;}
 
-/* ✅ White labels */
+/* White labels for inputs */
 .stSelectbox > label,
 .stRadio > label,
 .stToggle > label,
@@ -172,6 +144,7 @@ header {visibility: hidden;}
   color: var(--text); font-size: 12px; line-height: 1; white-space: nowrap;
   text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
+
 .pillStrong {
   background: rgba(225,6,0,0.26);
   border: 1px solid rgba(225,6,0,0.50);
@@ -192,10 +165,12 @@ header {visibility: hidden;}
   font-size: 11px; letter-spacing: 0.6px; color: var(--muted2);
   margin-bottom: 6px; font-weight: 800; text-transform: uppercase;
 }
+
 .kpiValue {
   font-size: 18px; font-weight: 900; letter-spacing: 0.35px;
   color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65);
 }
+
 .small-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
 .card {
@@ -216,13 +191,29 @@ header {visibility: hidden;}
   box-shadow: 0 0 0 2px rgba(0,0,0,0.45);
 }
 
+/* Status pill */
+.statusPill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-weight: 900;
+}
+.statusDot{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.45);
+}
+
 /* Gaps */
 .gapGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
 .gapCell {
   padding: 12px; border-radius: 16px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
 }
+
 .gapDir { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 800; }
 .gapVal { font-size: 16px; font-weight: 900; color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.65); }
 
@@ -292,9 +283,14 @@ header {visibility: hidden;}
 """, unsafe_allow_html=True)
 
 # -----------------------------
+# Debug toggle
+# -----------------------------
+debug = st.toggle("Debug (show API status)", value=False)
+
+# -----------------------------
 # OpenF1 OAuth Token (username/password -> access_token)
 # -----------------------------
-@st.cache_data(ttl=300)  # cache for 5 minutes; auto refresh
+@st.cache_data(ttl=300)  # cache token for 5 minutes
 def get_openf1_token():
     try:
         username = st.secrets.get("OPENF1_USERNAME", None)
@@ -304,7 +300,6 @@ def get_openf1_token():
         password = None
 
     if not username or not password:
-        st.error("Missing OpenF1 credentials. Add OPENF1_USERNAME and OPENF1_PASSWORD to Streamlit Secrets.")
         return None
 
     payload = {"username": username, "password": password}
@@ -313,42 +308,45 @@ def get_openf1_token():
     try:
         resp = requests.post(OPENF1_TOKEN_URL, data=payload, headers=headers, timeout=10)
         if resp.status_code != 200:
-            st.error(f"Failed to obtain OpenF1 token: {resp.status_code}")
             return None
         data = resp.json()
         return data.get("access_token")
-    except Exception as e:
-        st.error(f"Token request error: {e}")
+    except Exception:
         return None
 
-
 def get_json(endpoint: str):
-    token = get_openf1_token()
-    if not token:
-        return []
-
+    """
+    Tries with Bearer token (if available).
+    If OpenF1 rejects auth for that endpoint (401/403),
+    automatically retries WITHOUT auth (so public endpoints still work).
+    """
     url = f"{OPENF1_BASE}/{endpoint}"
-    headers = {"Authorization": f"Bearer {token}"}
+
+    token = get_openf1_token()
+    headers_auth = {"Authorization": f"Bearer {token}"} if token else None
 
     try:
-        r = requests.get(url, headers=headers, timeout=12)
+        if headers_auth:
+            r = requests.get(url, headers=headers_auth, timeout=12)
+            if debug:
+                st.caption(f"GET {endpoint} → {r.status_code} (auth)")
+            if r.status_code == 200:
+                return r.json()
+            if r.status_code == 401:
+                get_openf1_token.clear()
+            if r.status_code not in (401, 403):
+                return []
 
-        if r.status_code == 401:
-            # Force token refresh next run
-            get_openf1_token.clear()
-            st.warning("OpenF1 token expired. Refreshing…")
-            return []
-
-        if r.status_code != 200:
-            st.warning(f"OpenF1 request failed: {r.status_code}")
-            return []
-
-        return r.json()
-
-    except Exception as e:
-        st.warning(f"Network error calling OpenF1: {e}")
+        r2 = requests.get(url, timeout=12)
+        if debug:
+            st.caption(f"GET {endpoint} → {r2.status_code} (no-auth)")
+        if r2.status_code == 200:
+            return r2.json()
         return []
-
+    except Exception as e:
+        if debug:
+            st.caption(f"GET {endpoint} → error: {e}")
+        return []
 
 # -----------------------------
 # Helpers
@@ -406,6 +404,66 @@ def acronym_for(drivers_full_df: pd.DataFrame, num: int):
         return safe_str(row.iloc[0].get("name_acronym"), str(num))
     return str(num)
 
+def _to_dt(x):
+    try:
+        return pd.to_datetime(x, utc=True)
+    except:
+        return pd.NaT
+
+def get_driver_status(session_key: int, driver_number: int, refresh_seconds: int):
+    """
+    Returns (label, color_hex)
+    - ON TRACK  -> green
+    - IN PIT    -> yellow
+    - OUT       -> red
+    """
+    now = pd.Timestamp.now(tz="UTC")
+
+    # 1) OUT detection via race_control
+    rc = pd.DataFrame(get_json(f"race_control?session_key={session_key}&driver_number={driver_number}"))
+    if not rc.empty and "date" in rc.columns:
+        rc["date_dt"] = rc["date"].apply(_to_dt)
+        rc = rc.sort_values("date_dt")
+        last_rc = rc.iloc[-1].to_dict()
+
+        msg = str(last_rc.get("message", "")).upper()
+        cat = str(last_rc.get("category", "")).upper()
+
+        out_keywords = ["RETIRED", "RETIREMENT", "STOPPED", "OUT", "DNF", "WITHDREW", "NOT CLASSIFIED"]
+        if any(k in msg for k in out_keywords) and (cat in ["CAREVENT", "SESSIONSTATUS", "FLAG"] or "CAR" in msg):
+            return ("OUT", "#FF1744")
+
+    # 2) IN PIT detection via pit endpoint (recent pit record)
+    pit = pd.DataFrame(get_json(f"pit?session_key={session_key}&driver_number={driver_number}"))
+    if not pit.empty and "date" in pit.columns:
+        pit["date_dt"] = pit["date"].apply(_to_dt)
+        pit = pit.sort_values("date_dt")
+        last_pit_time = pit.iloc[-1]["date_dt"]
+
+        window_s = min(max(refresh_seconds * 2, 20), 60)
+        if pd.notna(last_pit_time) and (now - last_pit_time).total_seconds() <= window_s:
+            return ("IN PIT", "#FFD600")
+
+    # 3) Fallback: car_data low speed suggests pit (heuristic)
+    car = pd.DataFrame(get_json(f"car_data?session_key={session_key}&driver_number={driver_number}"))
+    if not car.empty:
+        if "date" in car.columns:
+            car["date_dt"] = car["date"].apply(_to_dt)
+            car = car.sort_values("date_dt")
+        last = car.iloc[-1].to_dict()
+        speed = last.get("speed", None)
+        try:
+            speed = float(speed) if speed is not None else None
+        except:
+            speed = None
+
+        # Very low speed and near-zero acceleration often means pit/garage
+        if speed is not None and speed <= 30:
+            return ("IN PIT", "#FFD600")
+
+    # Default
+    return ("ON TRACK", "#00E676")
+
 # -----------------------------
 # Header (logo)
 # -----------------------------
@@ -450,7 +508,7 @@ def load_sessions_for_meeting(meeting_key: int):
 
 meetings = load_meetings()
 if meetings.empty or "year" not in meetings.columns:
-    st.error("Could not load meetings from OpenF1.")
+    st.error("Could not load meetings from OpenF1. (Enable Debug to see status codes.)")
     st.stop()
 
 years = sorted(meetings["year"].dropna().unique().tolist(), reverse=True)
@@ -470,6 +528,7 @@ meeting_options = {
     for _, r in meetings_y.iterrows()
     if pd.notna(r.get("meeting_key"))
 }
+
 sel_meeting_label = st.selectbox("Race Weekend (Meeting)", list(meeting_options.keys()))
 sel_meeting_key = meeting_options[sel_meeting_label]
 
@@ -492,6 +551,7 @@ session_options = {
     for _, r in sessions_df.iterrows()
     if pd.notna(r.get("session_key"))
 }
+
 sel_session_label = st.selectbox("Session", list(session_options.keys()))
 session_key = session_options[sel_session_label]
 
@@ -585,7 +645,6 @@ gap_ahead = "--"
 gap_behind = "--"
 gap_leader = "--"
 my_pos = None
-
 ahead_number = None
 behind_number = None
 
@@ -697,7 +756,23 @@ def load_driver_laps(session_key_int: int, driver_num_int: int):
     return df[["lap_number", "lap_duration_num"]].dropna(subset=["lap_duration_num"])
 
 # -----------------------------
-# Render Broadcast Header + Cards
+# Driver Status (ON TRACK / IN PIT / OUT)
+# -----------------------------
+status_label, status_color = get_driver_status(
+    session_key=int(session_key),
+    driver_number=int(driver_number),
+    refresh_seconds=int(refresh_seconds) if refresh_seconds else 10
+)
+
+status_html = f"""
+<span class="pill statusPill">
+  <span class="statusDot" style="background:{status_color};"></span>
+  {status_label}
+</span>
+"""
+
+# -----------------------------
+# Render TV header + cards
 # -----------------------------
 cur_time_str = format_lap_time(current_lap.get("lap_duration_num"))
 prev_time_str = format_lap_time(previous_lap.get("lap_duration_num")) if previous_lap is not None else "--"
@@ -722,6 +797,7 @@ st.markdown(f"""
         <span class="pill pillStrong">{pos_pill}</span>
         <span class="pill">{lap_pill}</span>
         <span class="pill">{safe_str(location)} • {safe_str(session_name)}</span>
+        {status_html}
       </div>
       <div class="raceLine">
         <span class="pill">Team: <b>{safe_str(team)}</b></span>

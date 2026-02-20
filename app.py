@@ -299,6 +299,60 @@ def plotly_force_dark(fig):
         margin=dict(l=10, r=10, t=10, b=10),
     )
     return fig
+# -----------------------------
+# OAuth token
+# -----------------------------
+@st.cache_data(ttl=300)
+def get_openf1_token():
+    try:
+        username = st.secrets.get("OPENF1_USERNAME", None)
+        password = st.secrets.get("OPENF1_PASSWORD", None)
+    except Exception:
+        username = None
+        password = None
+
+    if not username or not password:
+        return None
+
+    payload = {"username": username, "password": password}
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+    try:
+        resp = requests.post(OPENF1_TOKEN_URL, data=payload, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return data.get("access_token")
+    except Exception:
+        return None
+
+def get_json(endpoint: str):
+    url = f"{OPENF1_BASE}/{endpoint}"
+    token = get_openf1_token()
+    headers_auth = {"Authorization": f"Bearer {token}"} if token else None
+
+    try:
+        if headers_auth:
+            r = requests.get(url, headers=headers_auth, timeout=12)
+            if debug:
+                st.caption(f"GET {endpoint} → {r.status_code} (auth)")
+            if r.status_code == 200:
+                return r.json()
+            if r.status_code == 401:
+                get_openf1_token.clear()
+            if r.status_code not in (401, 403):
+                return []
+
+        r2 = requests.get(url, timeout=12)
+        if debug:
+            st.caption(f"GET {endpoint} → {r2.status_code} (no-auth)")
+        if r2.status_code == 200:
+            return r2.json()
+        return []
+    except Exception as e:
+        if debug:
+            st.caption(f"GET {endpoint} → error: {e}")
+        return []
 
 # -----------------------------
 # DRIVER STATUS: ON TRACK / IN PIT / OUT

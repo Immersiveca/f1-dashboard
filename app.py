@@ -307,39 +307,6 @@ def _to_dt(x):
         return pd.NaT
 
 # -----------------------------
-# DRIVER STATUS: ON TRACK / IN PIT / OUT
-# -----------------------------
-def get_driver_status(session_key: int, driver_number: int, refresh_seconds: int):
-    now = pd.Timestamp.now(tz="UTC")
-
-    # OUT via race_control
-    rc = pd.DataFrame(get_json(f"race_control?session_key={session_key}&driver_number={driver_number}"))
-    if not rc.empty and "date" in rc.columns:
-        rc["date_dt"] = rc["date"].apply(_to_dt)
-        rc = rc.sort_values("date_dt")
-        last_rc = rc.iloc[-1].to_dict()
-
-        msg = str(last_rc.get("message", "")).upper()
-        cat = str(last_rc.get("category", "")).upper()
-        out_keywords = ["RETIRED", "RETIREMENT", "STOPPED", "OUT", "DNF", "WITHDREW", "NOT CLASSIFIED"]
-
-        if any(k in msg for k in out_keywords) and (cat in ["CAREVENT", "SESSIONSTATUS", "FLAG"] or "CAR" in msg):
-            return ("OUT", "#FF1744")
-
-    # IN PIT via pit endpoint (recent)
-    pit = pd.DataFrame(get_json(f"pit?session_key={session_key}&driver_number={driver_number}"))
-    if not pit.empty and "date" in pit.columns:
-        pit["date_dt"] = pit["date"].apply(_to_dt)
-        pit = pit.sort_values("date_dt")
-        last_pit_time = pit.iloc[-1]["date_dt"]
-
-        window_s = min(max(refresh_seconds * 2, 20), 60)
-        if pd.notna(last_pit_time) and (now - last_pit_time).total_seconds() <= window_s:
-            return ("IN PIT", "#FFD600")
-
-    return ("ON TRACK", "#00E676")
-
-# -----------------------------
 # Logo: base64 embed (FIXES empty tile + huge logo)
 # -----------------------------
 def load_logo_base64():

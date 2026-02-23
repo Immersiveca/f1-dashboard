@@ -6,6 +6,7 @@ import time
 import math
 import os
 import textwrap
+import random
 
 st.set_page_config(
     page_title="F1 Live Analytics by MPH",
@@ -63,6 +64,7 @@ div[data-testid="stToolbar"]{
   min-height: 0 !important;
   display: none !important;
 }
+/* Some Streamlit builds wrap main content differently */
 div[data-testid="stAppViewContainer"] > .main{
   padding-top: 0 !important;
   margin-top: 0 !important;
@@ -292,9 +294,20 @@ header {visibility: hidden;}
 """, unsafe_allow_html=True)
 
 # -----------------------------
+# Debug
+# -----------------------------
+debug = st.toggle("Debug (show API status)", value=False)
+
+# -----------------------------
 # OpenF1 OAuth Token (username/password -> access_token)
 # -----------------------------
-@st.cache_data(ttl=300)  # cache for 5 minutes; auto refresh
+@st.cache_data(ttl=300)  # 5 minutes
+def get_openf1_token_cached(username: str, password: str):
+    payload = {"username": username, "password": password}
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    resp = requests.post(OPENF1_TOKEN_URL, data=payload, headers=headers, timeout=10)
+    return resp.status_code, (resp.json() if resp.status_code == 200 else None)
+
 def get_openf1_token():
     try:
         username = st.secrets.get("OPENF1_USERNAME", None)
@@ -307,22 +320,27 @@ def get_openf1_token():
         st.error("Missing OpenF1 credentials. Add OPENF1_USERNAME and OPENF1_PASSWORD to Streamlit Secrets.")
         return None
 
-    payload = {"username": username, "password": password}
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
-    try:
-        resp = requests.post(OPENF1_TOKEN_URL, data=payload, headers=headers, timeout=10)
-        if resp.status_code != 200:
-            st.error(f"Failed to obtain OpenF1 token: {resp.status_code}")
-            return None
-        data = resp.json()
-        return data.get("access_token")
-    except Exception as e:
-        st.error(f"Token request error: {e}")
+    code, data = get_openf1_token_cached(username, password)
+    if debug:
+        st.caption(f"POST /token → {code}")
+    if code != 200 or not data:
+        st.error(f"Failed to obtain OpenF1 token: {code}")
         return None
+    return data.get("access_token")
 
+def _cooldown_active():
+    now = time.time()
+    until = st.session_state.get("rate_limit_until", 0)
+    return now < until, int(max(until - now, 0))
 
 def get_json(endpoint: str):
+    # Rate-limit cooldown: avoid hammering the API during 429 windows
+    active, secs_left = _cooldown_active()
+    if active:
+        if debug:
+            st.caption(f"⏳ cooldown {secs_left}s: skipping {endpoint}")
+        return []
+
     token = get_openf1_token()
     if not token:
         return []
@@ -331,16 +349,32 @@ def get_json(endpoint: str):
     headers = {"Authorization": f"Bearer {token}"}
 
     try:
+        if debug:
+            st.caption(f"GET {url}")
+
         r = requests.get(url, headers=headers, timeout=12)
 
+        # Token expired → clear cache and retry once
         if r.status_code == 401:
-            # Force token refresh next run
-            get_openf1_token.clear()
-            st.warning("OpenF1 token expired. Refreshing…")
+            get_openf1_token_cached.clear()
+            token2 = get_openf1_token()
+            if not token2:
+                return []
+            headers2 = {"Authorization": f"Bearer {token2}"}
+            r = requests.get(url, headers=headers2, timeout=12)
+
+        # Rate limited
+        if r.status_code == 429:
+            wait = random.randint(30, 60)
+            st.session_state["rate_limit_until"] = time.time() + wait
+            st.warning(f"OpenF1 request failed: 429 (rate limit). Cooling down for {wait}s…")
             return []
 
+        # Other failures
         if r.status_code != 200:
             st.warning(f"OpenF1 request failed: {r.status_code}")
+            if debug:
+                st.caption(f"Response text: {r.text[:200]}")
             return []
 
         return r.json()
@@ -348,7 +382,6 @@ def get_json(endpoint: str):
     except Exception as e:
         st.warning(f"Network error calling OpenF1: {e}")
         return []
-
 
 # -----------------------------
 # Helpers
@@ -422,6 +455,7 @@ col_logo, col_title = st.columns([1.8, 8], vertical_alignment="center")
 with col_logo:
     st.markdown("<div class='logoTile'>", unsafe_allow_html=True)
     if logo_path:
+        # Prevent weird crop: contain-fit by letting Streamlit scale inside the tile
         st.image(logo_path, use_container_width=True)
     else:
         st.markdown("<div style='font-weight:900;color:#F8FAFC;'>F1</div>", unsafe_allow_html=True)
@@ -628,7 +662,7 @@ if not intervals.empty and "driver_number" in intervals.columns:
                     gap_behind = safe_str(behind.iloc[0].get("interval"), "--")
 
 # -----------------------------
-# Stint timeline: markers only
+# Stint timeline: markers only (HTML only; never printed as text)
 # -----------------------------
 def stint_timeline_html(stints_df: pd.DataFrame, total_laps_hint: int, current_lap_num: int):
     if stints_df.empty or not all(c in stints_df.columns for c in ["lap_start", "lap_end", "compound"]):
@@ -757,11 +791,12 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Stint timeline card
+# Stint timeline card (render HTML safely)
+timeline_html = stint_timeline_html(stints, int(total_laps) if total_laps else 0, current_lap_number)
 st.markdown(f"""
 <div class="card" style="margin-top:12px;">
   <div class="sectionTitle">🛞 Stint Timeline</div>
-  {stint_timeline_html(stints, int(total_laps) if total_laps else 0, current_lap_number)}
+  {timeline_html}
 </div>
 """, unsafe_allow_html=True)
 
@@ -822,5 +857,3 @@ st.markdown("</div>", unsafe_allow_html=True)  # end container
 if refresh_seconds > 0:
     time.sleep(refresh_seconds)
     st.rerun()
-
-
